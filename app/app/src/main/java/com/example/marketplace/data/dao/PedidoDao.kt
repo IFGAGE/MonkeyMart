@@ -15,11 +15,10 @@ interface PedidoDao {
     @Query("SELECT * FROM tabela_pedido WHERE statusEntrega != 'ENTREGUE'")
     fun buscarPedidosPendentes(): Flow<List<PedidoEntity>>
 
-    // O comando mágico pro Entregador apertar o botão e mudar o status na hora!
+    // Por enquanto muda direto pra Entregue
     @Query("UPDATE tabela_pedido SET statusEntrega = :novoStatus WHERE id = :pedidoId")
     suspend fun atualizarStatus(pedidoId: Int, novoStatus: String)
 
-    // NOVO: Busca todos os pedidos que o usuário logado fez, do mais novo pro mais antigo
     @Query("SELECT * FROM tabela_pedido WHERE emailCliente = :email ORDER BY id DESC")
     fun buscarPedidosDoCliente(email: String): Flow<List<PedidoEntity>>
 

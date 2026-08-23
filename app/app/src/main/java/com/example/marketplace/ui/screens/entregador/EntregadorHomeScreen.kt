@@ -37,7 +37,7 @@ data class PedidoTemp(
 @Composable
 fun EntregadorHomeScreen(
     pedidos: List<PedidoTemp>,
-    veiculos: List<VeiculoTemp>, // <-- Recebe os veículos agora
+    veiculos: List<VeiculoTemp>,
     onAddVeiculoClick: () -> Unit,
     onProfileClick: () -> Unit,
     onMarcarComoEntregue: (Int) -> Unit
@@ -164,7 +164,6 @@ fun PedidoItemCard(
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- ÁREA DE SELEÇÃO DE VEÍCULO ---
                 Text(text = "Selecione o veículo da entrega:", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -201,7 +200,6 @@ fun PedidoItemCard(
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(12.dp),
-                    // O botão só fica clicável se ele tiver selecionado um veículo da lista
                     enabled = veiculoSelecionado != null
                 ) {
                     Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "Concluir")

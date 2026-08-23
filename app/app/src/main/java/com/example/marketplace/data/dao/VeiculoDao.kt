@@ -12,6 +12,6 @@ interface VeiculoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun salvarVeiculo(veiculo: VeiculoEntity)
 
-    @Query("SELECT * FROM tabela_veiculo WHERE emailDono = :email")
+    @Query("SELECT * FROM tabela_veiculo WHERE emailEntregador = :email")
     fun buscarVeiculosDoEntregador(email: String): Flow<List<VeiculoEntity>>
 }

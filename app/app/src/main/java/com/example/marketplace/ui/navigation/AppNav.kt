@@ -23,7 +23,7 @@ import androidx.navigation.compose.rememberNavController
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
-// Imports do Banco de Dados
+// Banco de Dados
 import com.example.marketplace.data.AppDatabase
 import com.example.marketplace.data.entity.AvaliacaoEntity
 import com.example.marketplace.data.entity.PedidoEntity
@@ -31,7 +31,7 @@ import com.example.marketplace.data.entity.ProdutoEntity
 import com.example.marketplace.data.entity.UsuarioEntity
 import com.example.marketplace.data.entity.VeiculoEntity
 
-// Imports das Telas
+// Telas
 import com.example.marketplace.ui.screens.auth.LoginScreen
 import com.example.marketplace.ui.screens.profile.ProfileSelectionScreen
 import com.example.marketplace.ui.screens.negociante.NegocianteHomeScreen
@@ -46,7 +46,6 @@ import com.example.marketplace.ui.screens.profile.UsuarioTemp
 
 @Composable
 fun AppNavigation(
-    // 1. Injetamos o ViewModel aqui! Ele sobrevive a mudanças de tema e rotação de tela.
     viewModel: AppViewModel = viewModel()
 ) {
     val navController = rememberNavController()
@@ -57,7 +56,6 @@ fun AppNavigation(
 
     val startDestination = if (auth.currentUser != null) "check_profile" else "login"
 
-    // 2. Agora pegamos os itens direto do "Cofre" (ViewModel)
     val carrinhoItens = viewModel.carrinhoItens
 
     NavHost(navController = navController, startDestination = startDestination) {
@@ -122,7 +120,7 @@ fun AppNavigation(
             )
         }
 
-        // --- ÁREA DO NEGOCIANTE ---
+        // ÁREA DO NEGOCIANTE
         composable("area_negociante") {
             val email = auth.currentUser?.email ?: ""
             val produtosList by db.produtoDao().buscarTodosProdutos().collectAsState(initial = emptyList())
@@ -143,7 +141,7 @@ fun AppNavigation(
                     nome = produtoEntity.nome,
                     preco = produtoEntity.preco,
                     descricao = produtoEntity.descricao,
-                    nomeDono = produtoEntity.nomeDono,
+                    nomeDono = produtoEntity.nomeNegociante,
                     fotoPathLocal = produtoEntity.fotoPathLocal,
                     avaliacoes = avaliacoesDoProduto,
                     podeAvaliar = historicoComprasEntregues.contains(produtoEntity.nome) && !jaAvaliou
@@ -179,7 +177,7 @@ fun AppNavigation(
             )
         }
 
-        // --- TELA DO CARRINHO ---
+        // TELA DO CARRINHO
         composable("carrinho") {
             CarrinhoScreen(
                 itensCarrinho = carrinhoItens,
@@ -222,12 +220,12 @@ fun AppNavigation(
             CadastroProdutoScreen(
                 onSalvar = { nome, descricao, preco ->
                     val email = auth.currentUser?.email ?: ""
-                    val nomeVendedor = viewModel.usuarioLogado?.nome ?: "Desconhecido"
+                    val nomeNegociante = viewModel.usuarioLogado?.nome ?: "Desconhecido"
 
                     coroutineScope.launch {
                         val novoProduto = ProdutoEntity(
-                            emailDono = email,
-                            nomeDono = nomeVendedor,
+                            emailNegociante = email,
+                            nomeNegociante = nomeNegociante,
                             nome = nome,
                             descricao = descricao,
                             preco = preco,
@@ -241,7 +239,7 @@ fun AppNavigation(
             )
         }
 
-        // --- ÁREA DO ENTREGADOR ---
+        // ÁREA DO ENTREGADOR
         composable("area_entregador") {
             val email = auth.currentUser?.email ?: ""
 
@@ -283,7 +281,7 @@ fun AppNavigation(
                     coroutineScope.launch {
                         val novoVeiculo = VeiculoEntity(
                             placa = placa,
-                            emailDono = email,
+                            emailEntregador = email,
                             modelo = modelo,
                             marca = marca,
                             ano = ano
@@ -296,7 +294,7 @@ fun AppNavigation(
             )
         }
 
-        // --- TELA DE MENU DO PERFIL ---
+        // TELA DE MENU DO PERFIL
         composable("perfil") {
             com.example.marketplace.ui.screens.profile.ProfileMenuScreen(
                 tipoPerfil = viewModel.usuarioLogado?.tipoPerfil ?: "",
@@ -312,7 +310,7 @@ fun AppNavigation(
             )
         }
 
-        // --- TELA DE MEUS DADOS ---
+        // MEUS DADOS
         composable("meus_dados") {
             ProfileScreen(
                 userEmail = auth.currentUser?.email ?: "Usuário",
@@ -321,7 +319,7 @@ fun AppNavigation(
             )
         }
 
-        // --- TELA DE MEUS PEDIDOS (Somente Negociante) ---
+        // MEUS PEDIDOS (Somente Negociante)
         composable("meus_pedidos") {
             val email = auth.currentUser?.email ?: ""
             val meusPedidosList by db.pedidoDao().buscarPedidosDoCliente(email).collectAsState(initial = emptyList())
@@ -342,7 +340,7 @@ fun AppNavigation(
             )
         }
 
-        // --- TELA DE MEUS VEÍCULOS (Somente Entregador) ---
+        // MEUS VEÍCULOS (Somente Entregador)
         composable("meus_veiculos") {
             val email = auth.currentUser?.email ?: ""
             val veiculosList by db.veiculoDao().buscarVeiculosDoEntregador(email).collectAsState(initial = emptyList())
@@ -359,7 +357,6 @@ fun AppNavigation(
     }
 }
 
-// 3. O "Cofre": Aqui criamos o ViewModel que segura a memória do app!
 class AppViewModel : ViewModel() {
     var usuarioLogado by mutableStateOf<UsuarioTemp?>(null)
     val carrinhoItens = mutableStateListOf<ItemCarrinho>()

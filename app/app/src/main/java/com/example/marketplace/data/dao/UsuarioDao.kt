@@ -14,6 +14,6 @@ interface UsuarioDao {
     @Query("SELECT * FROM tabela_usuario WHERE email = :email LIMIT 1")
     suspend fun buscarUsuario(email: String): UsuarioEntity?
 
-    @Query("DELETE FROM tabela_usuario")
-    suspend fun deletarTudo()
+    //@Query("DELETE FROM tabela_usuario")
+    //suspend fun deletarTudo()
 }

@@ -13,7 +13,6 @@ import androidx.compose.ui.unit.dp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CadastroProdutoScreen(
-    // Em vez de ProdutoTemp, devolvemos os 3 textos limpos
     onSalvar: (nome: String, descricao: String, preco: String) -> Unit,
     onCancelar: () -> Unit
 ) {

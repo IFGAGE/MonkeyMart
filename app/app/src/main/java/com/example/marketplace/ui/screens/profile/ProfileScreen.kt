@@ -55,7 +55,6 @@ fun ProfileScreen(
                         InfoRow(label = "E-mail:", value = userEmail)
                         InfoRow(label = "CPF:", value = formatarCPF(usuario.cpf))
                         InfoRow(label = "Telefone:", value = formatarTelefone(usuario.telefone))
-                        // Aplica a máscara na Data de Nascimento
                         InfoRow(label = "Nascimento:", value = formatarDataNascimento(usuario.dataNascimento))
                         InfoRow(label = "Perfil:", value = usuario.tipoPerfil.replaceFirstChar { it.uppercase() })
                     }
@@ -88,32 +87,30 @@ fun InfoRow(label: String, value: String) {
     }
 }
 
-// --- FUNÇÕES DE FORMATAÇÃO VISUAL ---
 
 fun formatarCPF(cpf: String): String {
     val numeros = cpf.filter { it.isDigit() }
     return if (numeros.length == 11) {
         "${numeros.substring(0, 3)}.${numeros.substring(3, 6)}.${numeros.substring(6, 9)}-${numeros.substring(9, 11)}"
     } else {
-        cpf // Retorna original se não tiver 11 dígitos
+        cpf
     }
 }
 
 fun formatarTelefone(telefone: String): String {
     val numeros = telefone.filter { it.isDigit() }
     return when (numeros.length) {
-        11 -> "(${numeros.substring(0, 2)}) ${numeros.substring(2, 7)}-${numeros.substring(7, 11)}" // Celular
-        10 -> "(${numeros.substring(0, 2)}) ${numeros.substring(2, 6)}-${numeros.substring(6, 10)}"  // Fixo
-        else -> telefone // Retorna original se o tamanho for diferente
+        11 -> "(${numeros.substring(0, 2)}) ${numeros.substring(2, 7)}-${numeros.substring(7, 11)}"
+        10 -> "(${numeros.substring(0, 2)}) ${numeros.substring(2, 6)}-${numeros.substring(6, 10)}"
+        else -> telefone
     }
 }
 
-// NOVA FUNÇÃO: Formatar a Data de Nascimento (DD/MM/YYYY)
 fun formatarDataNascimento(data: String): String {
     val numeros = data.filter { it.isDigit() }
     return if (numeros.length == 8) {
         "${numeros.substring(0, 2)}/${numeros.substring(2, 4)}/${numeros.substring(4, 8)}"
     } else {
-        data // Retorna original se não tiver exatamente 8 dígitos
+        data
     }
 }

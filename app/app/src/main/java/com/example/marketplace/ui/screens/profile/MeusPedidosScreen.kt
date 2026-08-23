@@ -16,7 +16,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Modelo visual específico para o cliente
 data class PedidoCliente(
     val id: Int,
     val enderecoEntrega: String,
@@ -83,7 +82,6 @@ fun PedidoClienteCard(pedido: PedidoCliente) {
             
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Mostra o status com cor dinâmica
             Text(
                 text = "Status: ${pedido.statusEntrega}", 
                 fontSize = 14.sp, 

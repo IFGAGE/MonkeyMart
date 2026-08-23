@@ -44,7 +44,6 @@ fun ProfileSelectionScreen(
         verticalArrangement = Arrangement.Center
     ) {
         if (selectedProfile == null) {
-            // --- ESTADO 1: ESCOLHA DE PERFIL ---
             Text(
                 text = "Escolha um perfil para realizar o cadastro",
                 fontSize = 22.sp,
@@ -64,7 +63,6 @@ fun ProfileSelectionScreen(
                 Text("Sair da conta", color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
             }
         } else {
-            // --- ESTADO 2: FORMULÁRIO DE CADASTRO ---
             FormularioCadastro(
                 perfil = selectedProfile!!,
                 onVoltarClick = { selectedProfile = null },
@@ -80,7 +78,7 @@ fun ProfileSelectionScreen(
 fun FormularioCadastro(
     perfil: String,
     onVoltarClick: () -> Unit,
-    onSalvarClick: (UsuarioTemp) -> Unit // <-- CORREÇÃO: Agora recebe o UsuarioTemp
+    onSalvarClick: (UsuarioTemp) -> Unit
 ) {
     var nome by remember { mutableStateOf("") }
     var telefone by remember { mutableStateOf("") }
@@ -103,7 +101,6 @@ fun FormularioCadastro(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // --- TELEFONE COM MÁSCARA ---
         val mascaraTelefone = if (telefone.length <= 10) "(##) ####-####" else "(##) #####-####"
 
         OutlinedTextField(
@@ -119,7 +116,6 @@ fun FormularioCadastro(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // --- CPF COM MÁSCARA ---
         OutlinedTextField(
             value = cpf,
             onValueChange = {
@@ -133,7 +129,6 @@ fun FormularioCadastro(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // --- DATA DE NASCIMENTO COM MÁSCARA ---
         OutlinedTextField(
             value = dataNascimento,
             onValueChange = {
@@ -166,7 +161,6 @@ fun FormularioCadastro(
                     } else if (perfil == "negociante" && age < 14) {
                         Toast.makeText(context, "Negociantes precisam ter 14 anos ou mais", Toast.LENGTH_LONG).show()
                     } else {
-                        // <-- CORREÇÃO: Instancia o usuário e envia!
                         val novoUsuario = UsuarioTemp(nome, telefone, cpf, dataNascimento, perfil)
                         onSalvarClick(novoUsuario)
                     }

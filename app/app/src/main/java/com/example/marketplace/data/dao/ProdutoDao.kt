@@ -12,11 +12,9 @@ interface ProdutoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun salvarProduto(produto: ProdutoEntity)
 
-    // O 'Flow' avisa a tela sempre que um produto novo é inserido no banco
-    @Query("SELECT * FROM tabela_produto WHERE emailDono = :email")
+    @Query("SELECT * FROM tabela_produto WHERE emailNegociante = :email")
     fun buscarProdutosDoNegociante(email: String): Flow<List<ProdutoEntity>>
-    
-    // Para o entregador ver todos os produtos disponíveis
+
     @Query("SELECT * FROM tabela_produto")
     fun buscarTodosProdutos(): Flow<List<ProdutoEntity>>
 }

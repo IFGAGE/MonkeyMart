@@ -13,7 +13,6 @@ import androidx.compose.ui.unit.dp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CadastroVeiculoScreen(
-    // Agora devolvemos os 4 textos preenchidos
     onSalvar: (placa: String, modelo: String, marca: String, ano: String) -> Unit,
     onCancelar: () -> Unit
 ) {

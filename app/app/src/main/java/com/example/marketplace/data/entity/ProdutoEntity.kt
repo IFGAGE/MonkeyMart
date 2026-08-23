@@ -6,8 +6,8 @@ import androidx.room3.PrimaryKey
 @Entity(tableName = "tabela_produto")
 data class ProdutoEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val emailDono: String,
-    val nomeDono: String,
+    val emailNegociante: String,
+    val nomeNegociante: String,
     val nome: String,
     val preco: String,
     val descricao: String,

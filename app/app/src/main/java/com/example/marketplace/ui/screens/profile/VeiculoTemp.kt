@@ -15,7 +15,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Modelo visual do veículo
 data class VeiculoTemp(
     val placa: String,
     val modelo: String,

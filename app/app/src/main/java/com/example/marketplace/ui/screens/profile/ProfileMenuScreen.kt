@@ -18,10 +18,10 @@ import androidx.compose.ui.unit.sp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileMenuScreen(
-    tipoPerfil: String, // <-- Sabe se é negociante ou entregador
+    tipoPerfil: String,
     onMeusDadosClick: () -> Unit,
     onMeusPedidosClick: () -> Unit,
-    onMeusVeiculosClick: () -> Unit, // <-- Nova ação
+    onMeusVeiculosClick: () -> Unit,
     onSignOutClick: () -> Unit,
     onBackClick: () -> Unit
 ) {
@@ -44,7 +44,6 @@ fun ProfileMenuScreen(
             )
             HorizontalDivider()
 
-            // LÓGICA CONDICIONAL: Mostra opções diferentes dependendo do perfil
             if (tipoPerfil == "negociante") {
                 ListItem(
                     headlineContent = { Text("Meus Pedidos", fontSize = 18.sp) },

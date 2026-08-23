@@ -8,6 +8,6 @@ data class AvaliacaoEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val nomeProduto: String,
     val emailAutor: String,
-    val nota: Int, // 1 a 5
+    val nota: Int,
     val comentario: String
 )

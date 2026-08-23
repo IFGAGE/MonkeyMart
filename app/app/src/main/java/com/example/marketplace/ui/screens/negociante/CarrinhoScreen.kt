@@ -190,20 +190,18 @@ fun ItemCarrinhoCard(
     onDiminuir: (ItemCarrinho) -> Unit,
     onRemover: (ItemCarrinho) -> Unit
 ) {
-    // Controla o modal de detalhes do produto igual na vitrine
     var showSheet by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { showSheet = true }, // Clicou no card, abre a descrição
+            .clickable { showSheet = true },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
             modifier = Modifier.padding(12.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Imagem em miniatura do lado esquerdo
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -219,7 +217,6 @@ fun ItemCarrinhoCard(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // 2. Textos (Título, Vendido por, e Preço)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.produto.nome,
@@ -243,7 +240,6 @@ fun ItemCarrinhoCard(
                 )
             }
 
-            // 3. Controles de Quantidade do lado direito
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = {
                     if (item.quantidade > 1) onDiminuir(item) else onRemover(item)
@@ -265,7 +261,6 @@ fun ItemCarrinhoCard(
         }
     }
 
-    // Modal de detalhes que desliza de baixo pra cima (igual ao da Home)
     if (showSheet) {
         ModalBottomSheet(
             onDismissRequest = { showSheet = false },

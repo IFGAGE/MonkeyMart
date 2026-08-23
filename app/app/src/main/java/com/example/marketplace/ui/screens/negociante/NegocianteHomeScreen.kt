@@ -258,7 +258,6 @@ fun ProdutoItemCard(
 
         ModalBottomSheet(
             onDismissRequest = { showSheet = false },
-            // MUDANÇA 1: Força o modal a não ficar travado no meio da tela
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
             Column(
@@ -266,7 +265,6 @@ fun ProdutoItemCard(
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
                     .verticalScroll(scrollState)
-                    // MUDANÇA 2: Avisa o Compose para empurrar a tela pra cima quando o teclado abrir
                     .imePadding()
             ) {
                 Box(
@@ -415,7 +413,6 @@ fun ProdutoItemCard(
                     )
                 }
 
-                // Aumentado um pouco o espaço final para garantir que o botão não encoste no teclado
                 Spacer(modifier = Modifier.height(80.dp))
             }
         }
