@@ -15,14 +15,13 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun ProfileScreen(
     userEmail: String,
-    usuario: UsuarioTemp?, // <-- Recebe os dados completos do usuário
-    onSignOut: () -> Unit,
+    usuario: UsuarioTemp?,
     onBackClick: () -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Meu Perfil") },
+                title = { Text("Meus Dados") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Voltar")
@@ -46,7 +45,6 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Verifica se tem os dados e exibe
             if (usuario != null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -55,14 +53,14 @@ fun ProfileScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         InfoRow(label = "Nome:", value = usuario.nome)
                         InfoRow(label = "E-mail:", value = userEmail)
-                        InfoRow(label = "CPF:", value = usuario.cpf)
-                        InfoRow(label = "Telefone:", value = usuario.telefone)
-                        InfoRow(label = "Nascimento:", value = usuario.dataNascimento)
+                        InfoRow(label = "CPF:", value = formatarCPF(usuario.cpf))
+                        InfoRow(label = "Telefone:", value = formatarTelefone(usuario.telefone))
+                        // Aplica a máscara na Data de Nascimento
+                        InfoRow(label = "Nascimento:", value = formatarDataNascimento(usuario.dataNascimento))
                         InfoRow(label = "Perfil:", value = usuario.tipoPerfil.replaceFirstChar { it.uppercase() })
                     }
                 }
             } else {
-                // Caso a memória zere (fallback preventivo)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -77,26 +75,45 @@ fun ProfileScreen(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.weight(1f)) // Empurra o botão pra baixo
-
-            Button(
-                onClick = onSignOut,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Sair da conta", fontSize = 16.sp)
-            }
         }
     }
 }
 
-// Componente reutilizável para exibir cada linha de informação
 @Composable
 fun InfoRow(label: String, value: String) {
     Column(modifier = Modifier.padding(vertical = 6.dp).fillMaxWidth()) {
         Text(text = label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
         Text(text = value, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+    }
+}
+
+// --- FUNÇÕES DE FORMATAÇÃO VISUAL ---
+
+fun formatarCPF(cpf: String): String {
+    val numeros = cpf.filter { it.isDigit() }
+    return if (numeros.length == 11) {
+        "${numeros.substring(0, 3)}.${numeros.substring(3, 6)}.${numeros.substring(6, 9)}-${numeros.substring(9, 11)}"
+    } else {
+        cpf // Retorna original se não tiver 11 dígitos
+    }
+}
+
+fun formatarTelefone(telefone: String): String {
+    val numeros = telefone.filter { it.isDigit() }
+    return when (numeros.length) {
+        11 -> "(${numeros.substring(0, 2)}) ${numeros.substring(2, 7)}-${numeros.substring(7, 11)}" // Celular
+        10 -> "(${numeros.substring(0, 2)}) ${numeros.substring(2, 6)}-${numeros.substring(6, 10)}"  // Fixo
+        else -> telefone // Retorna original se o tamanho for diferente
+    }
+}
+
+// NOVA FUNÇÃO: Formatar a Data de Nascimento (DD/MM/YYYY)
+fun formatarDataNascimento(data: String): String {
+    val numeros = data.filter { it.isDigit() }
+    return if (numeros.length == 8) {
+        "${numeros.substring(0, 2)}/${numeros.substring(2, 4)}/${numeros.substring(4, 8)}"
+    } else {
+        data // Retorna original se não tiver exatamente 8 dígitos
     }
 }

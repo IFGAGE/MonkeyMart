@@ -7,9 +7,9 @@ import androidx.room3.PrimaryKey
 data class ProdutoEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val emailDono: String,
-    val nomeDono: String, // <-- NOVO: Salva o nome de quem tá vendendo
+    val nomeDono: String,
     val nome: String,
     val preco: String,
     val descricao: String,
-    val fotoPathLocal: String? = null // <-- NOVO: Preparado para a foto da Semana 9
+    val fotoPathLocal: String? = null
 )
