@@ -2,8 +2,7 @@ package com.example.marketplace.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val YellowMain = Color(0xFFFFE600)
-val BlueLinks = Color(0xFF3483FA)
+val ColoredLinks = Color(0xFFDC8E08)
 val DarkText = Color(0xFF333333)
 val GrayBackground = Color(0xFFEBEBEB)
 val WhiteCard = Color(0xFFFFFFFF)
