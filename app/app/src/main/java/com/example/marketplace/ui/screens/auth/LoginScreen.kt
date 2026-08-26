@@ -1,7 +1,9 @@
 package com.example.marketplace.ui.screens.auth
 
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+// ButtonDefaults removido, não precisamos mais forçar a cor
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,12 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.marketplace.ui.theme.YellowMain
+import com.example.marketplace.R
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -49,20 +52,17 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
 
+    val isDarkTheme = isSystemInDarkTheme()
+    val logo = if (isDarkTheme) R.drawable.mm_branco else R.drawable.mm_preto
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(YellowMain),
+            .background(MaterialTheme.colorScheme.background),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(80.dp))
 
-        Text(
-            text = "Marketplace",
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
 
         Spacer(modifier = Modifier.height(48.dp))
 
@@ -80,11 +80,10 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "Iniciar sessão",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
+                Image(
+                    painter = painterResource(id = logo),
+                    contentDescription = "Logo Monkey Mart",
+                    modifier = Modifier.height(56.dp)
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -133,17 +132,16 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                             Toast.makeText(context, "Preencha os campos", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    enabled = !isLoading,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3483FA))
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    enabled = !isLoading
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
                     } else {
-                        Text("Entrar", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Entrar", fontSize = 16.sp)
                     }
                 }
             }
