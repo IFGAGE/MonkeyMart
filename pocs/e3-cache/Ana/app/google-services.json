@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "460010689009",
+    "project_id": "marketplace-15012",
+    "storage_bucket": "marketplace-15012.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:460010689009:android:3c35815f50876076577450",
+        "android_client_info": {
+          "package_name": "com.example.autenticacao"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjtBBupgBrlQfwuAxTlxf1Zax1ow-j8dg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:460010689009:android:a7b66449c61720f3577450",
+        "android_client_info": {
+          "package_name": "com.example.marketplace"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjtBBupgBrlQfwuAxTlxf1Zax1ow-j8dg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:460010689009:android:264fe6f466416a4c577450",
+        "android_client_info": {
+          "package_name": "com.example.sincronizacao"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjtBBupgBrlQfwuAxTlxf1Zax1ow-j8dg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
