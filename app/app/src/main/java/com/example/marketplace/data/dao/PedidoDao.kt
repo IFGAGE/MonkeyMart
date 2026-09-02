@@ -15,8 +15,9 @@ interface PedidoDao {
     @Query("SELECT * FROM tabela_pedido WHERE statusEntrega != 'ENTREGUE'")
     fun buscarPedidosPendentes(): Flow<List<PedidoEntity>>
 
-    // Por enquanto muda direto pra Entregue
-    @Query("UPDATE tabela_pedido SET statusEntrega = :novoStatus WHERE id = :pedidoId")
+    // Por enquanto muda direto pra Entregue.
+    // isSynced volta pra 0 pra essa mudança de status também subir pro Firestore.
+    @Query("UPDATE tabela_pedido SET statusEntrega = :novoStatus, isSynced = 0 WHERE id = :pedidoId")
     suspend fun atualizarStatus(pedidoId: Int, novoStatus: String)
 
     @Query("SELECT * FROM tabela_pedido WHERE emailCliente = :email ORDER BY id DESC")
@@ -24,4 +25,10 @@ interface PedidoDao {
 
     @Query("SELECT * FROM tabela_pedido WHERE emailCliente = :email AND statusEntrega = 'ENTREGUE'")
     fun buscarPedidosEntregues(email: String): Flow<List<PedidoEntity>>
+
+    @Query("SELECT * FROM tabela_pedido WHERE isSynced = 0")
+    suspend fun buscarNaoSincronizados(): List<PedidoEntity>
+
+    @Query("UPDATE tabela_pedido SET isSynced = 1 WHERE id = :id")
+    suspend fun marcarComoSincronizado(id: Int)
 }

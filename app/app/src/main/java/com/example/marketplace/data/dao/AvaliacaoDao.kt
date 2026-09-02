@@ -13,4 +13,10 @@ interface AvaliacaoDao {
 
     @Query("SELECT * FROM tabela_avaliacao")
     fun buscarTodas(): Flow<List<AvaliacaoEntity>>
+
+    @Query("SELECT * FROM tabela_avaliacao WHERE isSynced = 0")
+    suspend fun buscarNaoSincronizados(): List<AvaliacaoEntity>
+
+    @Query("UPDATE tabela_avaliacao SET isSynced = 1 WHERE id = :id")
+    suspend fun marcarComoSincronizado(id: Int)
 }

@@ -17,4 +17,10 @@ interface ProdutoDao {
 
     @Query("SELECT * FROM tabela_produto")
     fun buscarTodosProdutos(): Flow<List<ProdutoEntity>>
+
+    @Query("SELECT * FROM tabela_produto WHERE isSynced = 0")
+    suspend fun buscarNaoSincronizados(): List<ProdutoEntity>
+
+    @Query("UPDATE tabela_produto SET isSynced = 1 WHERE id = :id")
+    suspend fun marcarComoSincronizado(id: Int)
 }

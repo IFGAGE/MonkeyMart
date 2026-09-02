@@ -9,5 +9,6 @@ data class VeiculoEntity(
     val emailEntregador: String,
     val modelo: String,
     val marca: String,
-    val ano: String
+    val ano: String,
+    val isSynced: Boolean = false
 )

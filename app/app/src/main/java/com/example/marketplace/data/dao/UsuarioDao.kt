@@ -14,6 +14,12 @@ interface UsuarioDao {
     @Query("SELECT * FROM tabela_usuario WHERE email = :email LIMIT 1")
     suspend fun buscarUsuario(email: String): UsuarioEntity?
 
+    @Query("SELECT * FROM tabela_usuario WHERE isSynced = 0")
+    suspend fun buscarNaoSincronizados(): List<UsuarioEntity>
+
+    @Query("UPDATE tabela_usuario SET isSynced = 1 WHERE email = :email")
+    suspend fun marcarComoSincronizado(email: String)
+
     //@Query("DELETE FROM tabela_usuario")
     //suspend fun deletarTudo()
 }

@@ -9,5 +9,6 @@ data class AvaliacaoEntity(
     val nomeProduto: String,
     val emailAutor: String,
     val nota: Int,
-    val comentario: String
+    val comentario: String,
+    val isSynced: Boolean = false
 )

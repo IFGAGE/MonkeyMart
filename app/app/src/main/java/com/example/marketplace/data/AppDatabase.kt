@@ -23,7 +23,7 @@ import com.example.marketplace.data.entity.VeiculoEntity
         PedidoEntity::class,
         AvaliacaoEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -44,7 +44,10 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "marketplace_database"
-                ).build()
+                )
+                    // PoC: sem migração real ainda, recria o banco local ao mudar o schema.
+                    .fallbackToDestructiveMigration()
+                    .build()
 
                 INSTANCE = instance
                 instance

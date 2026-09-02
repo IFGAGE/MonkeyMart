@@ -10,5 +10,6 @@ data class UsuarioEntity(
     val telefone: String,
     val cpf: String,
     val dataNascimento: String,
-    val tipoPerfil: String
+    val tipoPerfil: String,
+    val isSynced: Boolean = false
 )

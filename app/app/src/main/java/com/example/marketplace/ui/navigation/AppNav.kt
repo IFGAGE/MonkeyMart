@@ -1,5 +1,6 @@
 package com.example.marketplace.ui.navigation
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,6 +31,12 @@ import com.example.marketplace.data.entity.PedidoEntity
 import com.example.marketplace.data.entity.ProdutoEntity
 import com.example.marketplace.data.entity.UsuarioEntity
 import com.example.marketplace.data.entity.VeiculoEntity
+import com.example.marketplace.data.sync.sincronizarAvaliacoes
+import com.example.marketplace.data.sync.sincronizarPedidos
+import com.example.marketplace.data.sync.sincronizarProdutos
+import com.example.marketplace.data.sync.sincronizarTudo
+import com.example.marketplace.data.sync.sincronizarUsuarios
+import com.example.marketplace.data.sync.sincronizarVeiculos
 
 // Telas
 import com.example.marketplace.ui.screens.auth.LoginScreen
@@ -107,7 +114,17 @@ fun AppNavigation(
                             dataNascimento = usuario.dataNascimento,
                             tipoPerfil = usuario.tipoPerfil
                         )
+                        // 1. Grava sempre no cache local (SQLite) primeiro.
                         db.usuarioDao().salvarUsuario(novoUsuarioEntity)
+
+                        // 2. Tenta sincronizar com o Firestore; se falhar, o usuário
+                        // permanece pendente e é reenviado na próxima sincronização.
+                        try {
+                            sincronizarUsuarios(db.usuarioDao())
+                        } catch (e: Exception) {
+                            // Offline: será reenviado automaticamente depois.
+                            Log.e("Sync", "Offline: será reenviado automaticamente depois.", e)
+                        }
 
                         val rotaDestino = if (usuario.tipoPerfil == "negociante") "area_negociante" else "area_entregador"
                         navController.navigate(rotaDestino) { popUpTo(0) }
@@ -124,6 +141,12 @@ fun AppNavigation(
         composable("area_negociante") {
             val email = auth.currentUser?.email ?: ""
             val produtosList by db.produtoDao().buscarTodosProdutos().collectAsState(initial = emptyList())
+
+            // Reenvia ao Firestore tudo que ficou pendente de uma sessão sem internet
+            // (cada tabela é tentada de forma independente dentro de sincronizarTudo).
+            LaunchedEffect(Unit) {
+                sincronizarTudo(db)
+            }
 
             val pedidosEntregues by db.pedidoDao().buscarPedidosEntregues(email).collectAsState(initial = emptyList())
             val historicoComprasEntregues = pedidosEntregues.joinToString { it.resumoItens }
@@ -172,6 +195,12 @@ fun AppNavigation(
                             comentario = comentario
                         )
                         db.avaliacaoDAO().salvarAvaliacao(novaAvaliacao)
+                        try {
+                            sincronizarAvaliacoes(db.avaliacaoDAO())
+                        } catch (e: Exception) {
+                            // Offline: será reenviada automaticamente depois.
+                            Log.e("Sync", "Offline: será reenviada automaticamente depois.", e)
+                        }
                     }
                 }
             )
@@ -210,6 +239,12 @@ fun AppNavigation(
                         )
                         db.pedidoDao().salvarPedido(novoPedido)
                         carrinhoItens.clear()
+                        try {
+                            sincronizarPedidos(db.pedidoDao())
+                        } catch (e: Exception) {
+                            // Offline: será reenviado automaticamente depois.
+                            Log.e("Sync", "Offline: será reenviado automaticamente depois.", e)
+                        }
                     }
                     navController.popBackStack()
                 }
@@ -229,9 +264,20 @@ fun AppNavigation(
                             nome = nome,
                             descricao = descricao,
                             preco = preco,
-                            fotoPathLocal = ""
+                            fotoPathLocal = "",
+                            isSynced = false
                         )
+                        // 1. Grava sempre no cache local (SQLite) primeiro.
                         db.produtoDao().salvarProduto(novoProduto)
+
+                        // 2. Tenta sincronizar com o Firestore; se falhar, o produto
+                        // permanece pendente e é reenviado ao reabrir esta área.
+                        try {
+                            sincronizarProdutos(db.produtoDao())
+                        } catch (e: Exception) {
+                            // Offline: será reenviado automaticamente depois.
+                            Log.e("Sync", "Offline: será reenviado automaticamente depois.", e)
+                        }
                     }
                     navController.popBackStack()
                 },
@@ -242,6 +288,11 @@ fun AppNavigation(
         // ÁREA DO ENTREGADOR
         composable("area_entregador") {
             val email = auth.currentUser?.email ?: ""
+
+            // Reenvia ao Firestore tudo que ficou pendente de uma sessão sem internet.
+            LaunchedEffect(Unit) {
+                sincronizarTudo(db)
+            }
 
             val pedidosPendentes by db.pedidoDao().buscarPedidosPendentes().collectAsState(initial = emptyList())
             val pedidosVisuais = pedidosPendentes.map {
@@ -268,6 +319,12 @@ fun AppNavigation(
                 onMarcarComoEntregue = { pedidoId ->
                     coroutineScope.launch {
                         db.pedidoDao().atualizarStatus(pedidoId, "ENTREGUE")
+                        try {
+                            sincronizarPedidos(db.pedidoDao())
+                        } catch (e: Exception) {
+                            // Offline: será reenviado automaticamente depois.
+                            Log.e("Sync", "Offline: será reenviado automaticamente depois.", e)
+                        }
                     }
                 }
             )
@@ -287,6 +344,12 @@ fun AppNavigation(
                             ano = ano
                         )
                         db.veiculoDao().salvarVeiculo(novoVeiculo)
+                        try {
+                            sincronizarVeiculos(db.veiculoDao())
+                        } catch (e: Exception) {
+                            // Offline: será reenviado automaticamente depois.
+                            Log.e("Sync", "Offline: será reenviado automaticamente depois.", e)
+                        }
                     }
                     navController.popBackStack()
                 },

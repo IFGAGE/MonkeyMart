@@ -14,4 +14,10 @@ interface VeiculoDao {
 
     @Query("SELECT * FROM tabela_veiculo WHERE emailEntregador = :email")
     fun buscarVeiculosDoEntregador(email: String): Flow<List<VeiculoEntity>>
+
+    @Query("SELECT * FROM tabela_veiculo WHERE isSynced = 0")
+    suspend fun buscarNaoSincronizados(): List<VeiculoEntity>
+
+    @Query("UPDATE tabela_veiculo SET isSynced = 1 WHERE placa = :placa")
+    suspend fun marcarComoSincronizado(placa: String)
 }

@@ -11,5 +11,6 @@ data class ProdutoEntity(
     val nome: String,
     val preco: String,
     val descricao: String,
-    val fotoPathLocal: String? = null
+    val fotoPathLocal: String? = null,
+    val isSynced: Boolean = false
 )
