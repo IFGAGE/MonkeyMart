@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
@@ -15,25 +14,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import coil.compose.AsyncImage
-import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var gerenciadorDeFotos: GerenciadorDeFotos
-    private val repositorio = ConexaoFirebaseStorage()
 
     private var arquivoDaFotoAtual: File? = null
     private var uriDaFotoLocal by mutableStateOf<Uri?>(null)
-    private var statusDaSincronizacao by mutableStateOf("—")
 
     private val disparadorTirarFoto =
         registerForActivityResult(ActivityResultContracts.TakePicture()) { sucesso ->
             if (sucesso) {
                 uriDaFotoLocal = arquivoDaFotoAtual?.let { Uri.fromFile(it) }
-                arquivoDaFotoAtual?.let { sincronizarComFirebase(it) }
             }
         }
 
@@ -75,7 +69,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        Text("Status da sincronização: $statusDaSincronizacao")
+                        Text("Foto salva em: ${arquivoDaFotoAtual?.absolutePath ?: "—"}")
                     }
                 }
             }
@@ -113,20 +107,5 @@ class MainActivity : ComponentActivity() {
         }
         arquivoDaFotoAtual = arquivoDestino
         uriDaFotoLocal = Uri.fromFile(arquivoDestino)
-        sincronizarComFirebase(arquivoDestino)
-    }
-
-    private fun sincronizarComFirebase(arquivo: File) {
-        statusDaSincronizacao = "Enviando..."
-        lifecycleScope.launch {
-            val resultado = repositorio.enviarFoto(arquivo, idDoItem = "produto_teste_poc")
-            resultado.onSuccess { url ->
-                statusDaSincronizacao = "Sincronizado ✅"
-                Log.d("SyncPhoto", "Upload concluído: $url")
-            }.onFailure { erro ->
-                statusDaSincronizacao = "Falhou (mantido local) ⚠️"
-                Log.e("SyncPhoto", "Falha no upload", erro)
-            }
-        }
     }
 }
