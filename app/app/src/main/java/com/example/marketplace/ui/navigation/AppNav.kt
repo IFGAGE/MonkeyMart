@@ -253,7 +253,7 @@ fun AppNavigation(
 
         composable("cadastro_produto") {
             CadastroProdutoScreen(
-                onSalvar = { nome, descricao, preco ->
+                onSalvar = { nome, descricao, preco, fotoPathLocal ->
                     val email = auth.currentUser?.email ?: ""
                     val nomeNegociante = viewModel.usuarioLogado?.nome ?: "Desconhecido"
 
@@ -264,7 +264,7 @@ fun AppNavigation(
                             nome = nome,
                             descricao = descricao,
                             preco = preco,
-                            fotoPathLocal = "",
+                            fotoPathLocal = fotoPathLocal,
                             isSynced = false
                         )
                         // 1. Grava sempre no cache local (SQLite) primeiro.
