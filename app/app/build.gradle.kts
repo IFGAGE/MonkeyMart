@@ -11,7 +11,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.marketplace"
+        applicationId = "com.monkeymart.app"
         minSdk = 23
         targetSdk = 37
         versionCode = 1
@@ -58,19 +58,18 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.7.0")
 
-    // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
-    // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // Icons
     implementation("androidx.compose.material:material-icons-extended")
 
-    // Room 3
     implementation(libs.androidx.room3.runtime)
     ksp(libs.androidx.room3.compiler)
+
+    implementation(libs.osmdroid.android)
+    implementation(libs.androidx.preference.ktx)
 }
