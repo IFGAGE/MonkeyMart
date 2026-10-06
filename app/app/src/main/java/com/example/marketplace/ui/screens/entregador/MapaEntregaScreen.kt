@@ -1,6 +1,5 @@
 package com.example.marketplace.ui.screens.entregador
 
-import android.location.Geocoder
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,20 +35,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
-import androidx.preference.PreferenceManager
-import com.example.marketplace.R
 import com.example.marketplace.ui.theme.ColoredLinks
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.CustomZoomButtonsController
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import java.util.Locale
+
+import com.example.marketplace.ui.mapa.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,28 +46,13 @@ fun MapaEntregaScreen(
     endereco: String,
     onVoltar: () -> Unit
 ) {
-    val context = LocalContext.current
-    Configuration.getInstance().load(context, PreferenceManager.getDefaultSharedPreferences(context))
-    Configuration.getInstance().userAgentValue = "MonkeyMart/1.0 (substitua-pelo-seu-email@gmail.com)"
+    val context = LocalContext.current.applicationContext
+    var estado by remember(endereco) { mutableStateOf<EstadoBuscaEndereco>(EstadoBuscaEndereco.Carregando) }
+    var tentativa by remember(endereco) { mutableStateOf(0) }
 
-    var pontoEntrega by remember { mutableStateOf<GeoPoint?>(null) }
-    var erroBusca by remember { mutableStateOf(false) }
-
-    LaunchedEffect(endereco) {
-        withContext(Dispatchers.IO) {
-            try {
-                val geocoder = Geocoder(context, Locale.getDefault())
-                val list = geocoder.getFromLocationName(endereco, 1)
-                if (!list.isNullOrEmpty()) {
-                    val addr = list[0]
-                    pontoEntrega = GeoPoint(addr.latitude, addr.longitude)
-                } else {
-                    erroBusca = true
-                }
-            } catch (e: Exception) {
-                erroBusca = true
-            }
-        }
+    LaunchedEffect(endereco, tentativa) {
+        estado = EstadoBuscaEndereco.Carregando
+        estado = buscarEndereco(endereco, { localizarEndereco(context, it) })
     }
 
     Scaffold(
@@ -131,39 +105,13 @@ fun MapaEntregaScreen(
                     .clip(RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (pontoEntrega != null) {
-                    AndroidView(
-                        factory = { ctx ->
-                            MapView(ctx).apply {
-                                setTileSource(TileSourceFactory.MAPNIK)
-                                setMultiTouchControls(true)
-                                zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
-                                controller.setZoom(18.0)
-                                controller.setCenter(pontoEntrega)
-
-                                val iconeDestino = ContextCompat.getDrawable(ctx, R.drawable.ic_pin_monkey)
-                                val marcador = Marker(this).apply {
-                                    position = pontoEntrega
-                                    title = endereco
-                                    icon = iconeDestino
-                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                }
-
-                                overlays.add(marcador)
-                                marcador.showInfoWindow()
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else if (erroBusca) {
-                    Text(
-                        text = "Não foi possível encontrar as coordenadas para o endereço informado.",
-                        color = Color.Gray,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                } else {
-                    CircularProgressIndicator(color = ColoredLinks)
+                when (val atual = estado) {
+                    is EstadoBuscaEndereco.Encontrado -> MapaDestino(atual, Modifier.fillMaxSize())
+                    is EstadoBuscaEndereco.Erro -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(atual.mensagem, modifier = Modifier.padding(16.dp), color = Color.Gray)
+                        Button(onClick = { tentativa++ }) { Text("Tentar novamente") }
+                    }
+                    else -> CircularProgressIndicator(color = ColoredLinks)
                 }
             }
         }

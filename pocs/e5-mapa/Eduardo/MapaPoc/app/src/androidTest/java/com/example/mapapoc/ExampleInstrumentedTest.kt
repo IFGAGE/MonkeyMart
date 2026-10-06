@@ -11,6 +11,6 @@ class ExampleInstrumentedTest {
     @Test
     fun useAppContext() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.example.mapapoc", appContext.packageName)
+        assertEquals("com.monkeymart.mapapoc", appContext.packageName)
     }
 }

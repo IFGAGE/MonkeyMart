@@ -10,6 +10,18 @@ import com.example.marketplace.data.dao.VeiculoDao
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import com.google.firebase.firestore.MetadataChanges
 
 
 suspend fun sincronizarProdutos(produtoDao: ProdutoDao) {
@@ -55,17 +67,62 @@ suspend fun sincronizarVeiculos(veiculoDao: VeiculoDao) {
 }
 
 
-suspend fun sincronizarPedidos(pedidoDao: PedidoDao) {
+private val pedidoSyncMutex = Mutex()
+
+suspend fun sincronizarPedidos(pedidoDao: PedidoDao) = pedidoSyncMutex.withLock {
     val firestore = Firebase.firestore
-    val pendentes = pedidoDao.buscarNaoSincronizados()
-
-    pendentes.forEach { pedido ->
+    pedidoDao.buscarNaoSincronizados().forEach { pedido ->
         firestore.collection("pedidos")
-            .document(pedido.id.toString())
-            .set(pedido)
+            .document(pedido.firestoreId)
+            .set(dadosPedido(pedido))
             .await()
+        pedidoDao.marcarComoSincronizado(pedido.id, pedido.statusEntrega)
+    }
+}
 
-        pedidoDao.marcarComoSincronizado(pedido.id)
+// O listener alimenta o Room, que continua sendo a fonte das listas na interface.
+private fun observarPedidosRemotos() = callbackFlow {
+    val registration = Firebase.firestore.collection("pedidos")
+        .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+            if (error != null) {
+                close(error)
+            } else if (snapshot != null) {
+                val pedidos = snapshot.documents
+                    .filter { !it.metadata.hasPendingWrites() }
+                    .mapNotNull { doc -> doc.data?.let { pedidoRemoto(doc.id, it) } }
+                trySend(pedidos)
+            }
+        }
+    awaitClose { registration.remove() }
+}.conflate()
+
+suspend fun acompanharPedidos(pedidoDao: PedidoDao) = coroutineScope {
+    launch {
+        while (isActive) {
+            try {
+                observarPedidosRemotos().collect { pedidos ->
+                    pedidos.forEach { pedidoDao.receberPedido(it) }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("Sync", "Falha ao receber pedidos; nova tentativa em 15 segundos.", e)
+                delay(15_000)
+            }
+        }
+    }
+    // Reenvia o cache local após falhas de rede; o mutex evita envios concorrentes.
+    launch {
+        while (isActive) {
+            try {
+                sincronizarPedidos(pedidoDao)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("Sync", "Pedidos continuam no cache local para reenvio.", e)
+            }
+            delay(15_000)
+        }
     }
 }
 

@@ -13,11 +13,11 @@ android {
     defaultConfig {
         applicationId = "com.monkeymart.app"
         minSdk = 23
-        targetSdk = 37
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.example.marketplace.Entrega5TestRunner"
     }
 
     buildTypes {
@@ -69,6 +69,10 @@ dependencies {
 
     implementation(libs.androidx.room3.runtime)
     ksp(libs.androidx.room3.compiler)
+
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
 
     implementation(libs.osmdroid.android)
     implementation(libs.androidx.preference.ktx)

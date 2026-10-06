@@ -26,6 +26,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,13 +36,16 @@ fun CarrinhoScreen(
     onAumentar: (ItemCarrinho) -> Unit,
     onDiminuir: (ItemCarrinho) -> Unit,
     onRemover: (ItemCarrinho) -> Unit,
-    onFinalizarPedido: (endereco: String, total: String) -> Unit,
+    onFinalizarPedido: suspend (endereco: String, total: String) -> Unit,
     onVoltar: () -> Unit
 ) {
     var showCheckoutDialog by remember { mutableStateOf(false) }
     var endereco by remember { mutableStateOf("") }
     var erroEndereco by remember { mutableStateOf(false) }
     var mostrarSucesso by remember { mutableStateOf(false) }
+    var salvando by remember { mutableStateOf(false) }
+    var erroSalvar by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     val totalDouble = itensCarrinho.sumOf { item ->
         val precoNumerico = item.produto.preco.replace(",", ".").toDoubleOrNull() ?: 0.0
@@ -65,12 +70,12 @@ fun CarrinhoScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("Pedido Concluído!", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("O entregador já foi notificado.", color = Color.Gray, fontSize = 16.sp)
+                Text("Pedido salvo. A sincronização ocorre quando houver conexão.", color = Color.Gray, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Button(
                     onClick = {
-                        onFinalizarPedido(endereco, totalFormatado)
+                        onVoltar()
                     },
                     modifier = Modifier.height(50.dp)
                 ) {
@@ -141,11 +146,12 @@ fun CarrinhoScreen(
 
     if (showCheckoutDialog) {
         AlertDialog(
-            onDismissRequest = { showCheckoutDialog = false },
+            onDismissRequest = { if (!salvando) showCheckoutDialog = false },
             title = { Text("Finalizar Pedido") },
             text = {
                 Column {
                     Text("Você está prestes a pagar R$ $totalFormatado.")
+                    if (erroSalvar) Text("Não foi possível salvar o pedido. Tente novamente.", color = MaterialTheme.colorScheme.error)
                     Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = endereco,
@@ -168,18 +174,32 @@ fun CarrinhoScreen(
                 Button(
                     onClick = {
                         if (endereco.isNotBlank()) {
-                            showCheckoutDialog = false
-                            mostrarSucesso = true
+                            salvando = true
+                            erroSalvar = false
+                            scope.launch {
+                                try {
+                                    onFinalizarPedido(endereco.trim(), totalFormatado)
+                                    showCheckoutDialog = false
+                                    mostrarSucesso = true
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    erroSalvar = true
+                                } finally {
+                                    salvando = false
+                                }
+                            }
                         } else {
                             erroEndereco = true
                         }
-                    }
+                    },
+                    enabled = !salvando
                 ) {
-                    Text("Pagar e Finalizar")
+                    Text(if (salvando) "Salvando..." else "Pagar e Finalizar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showCheckoutDialog = false }) { Text("Cancelar") }
+                TextButton(onClick = { showCheckoutDialog = false }, enabled = !salvando) { Text("Cancelar") }
             }
         )
     }

@@ -1,10 +1,12 @@
 package com.example.marketplace.ui.navigation
 
+import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -30,6 +32,7 @@ import com.example.marketplace.data.entity.PedidoEntity
 import com.example.marketplace.data.entity.ProdutoEntity
 import com.example.marketplace.data.entity.UsuarioEntity
 import com.example.marketplace.data.entity.VeiculoEntity
+import com.example.marketplace.data.sync.acompanharPedidos
 import com.example.marketplace.data.sync.sincronizarAvaliacoes
 import com.example.marketplace.data.sync.sincronizarPedidos
 import com.example.marketplace.data.sync.sincronizarProdutos
@@ -59,6 +62,15 @@ fun AppNavigation(
     val context = LocalContext.current
     val db = remember { AppDatabase.getDatabase(context) }
     val coroutineScope = rememberCoroutineScope()
+    var usuarioId by remember { mutableStateOf(auth.currentUser?.uid) }
+    DisposableEffect(auth) {
+        val listener = FirebaseAuth.AuthStateListener { usuarioId = it.currentUser?.uid }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
+    }
+    LaunchedEffect(usuarioId) {
+        if (usuarioId != null) acompanharPedidos(db.pedidoDao())
+    }
 
     val startDestination = if (auth.currentUser != null) "check_profile" else "login"
 
@@ -219,23 +231,25 @@ fun AppNavigation(
                         "${it.quantidade}x ${it.produto.nome}"
                     }
 
+                    val novoPedido = PedidoEntity(
+                        emailCliente = email,
+                        enderecoEntrega = endereco,
+                        resumoItens = resumoText,
+                        valorTotal = total,
+                        statusEntrega = "PENDENTE"
+                    )
+                    db.pedidoDao().salvarPedido(novoPedido)
+                    carrinhoItens.clear()
+                    // A confirmação depende só do SQLite, mesmo quando o aparelho está offline.
                     coroutineScope.launch {
-                        val novoPedido = PedidoEntity(
-                            emailCliente = email,
-                            enderecoEntrega = endereco,
-                            resumoItens = resumoText,
-                            valorTotal = total,
-                            statusEntrega = "PENDENTE"
-                        )
-                        db.pedidoDao().salvarPedido(novoPedido)
-                        carrinhoItens.clear()
                         try {
                             sincronizarPedidos(db.pedidoDao())
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
                         } catch (e: Exception) {
-                            Log.e("Sync", "Offline: será reenviado automaticamente depois.", e)
+                            Log.e("Sync", "Pedido local pendente de sincronização.", e)
                         }
                     }
-                    navController.popBackStack()
                 }
             )
         }
@@ -310,7 +324,7 @@ fun AppNavigation(
                     }
                 },
                 onVerMapaClick = { pedidoId, endereco ->
-                    navController.navigate("mapa_entrega/$pedidoId?endereco=$endereco")
+                    navController.navigate("mapa_entrega/$pedidoId?endereco=${Uri.encode(endereco)}")
                 }
             )
         }
