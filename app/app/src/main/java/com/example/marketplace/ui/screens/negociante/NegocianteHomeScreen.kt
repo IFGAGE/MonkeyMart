@@ -1,5 +1,6 @@
 package com.example.marketplace.ui.screens.negociante
 
+import coil.compose.AsyncImage
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,6 +30,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import com.example.marketplace.R
 import kotlinx.coroutines.launch
 
@@ -171,16 +174,25 @@ fun ProdutoItemCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp)
-                    .background(Color.LightGray),
+                    .aspectRatio(1f)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.ImageIcon,
-                    contentDescription = null,
-                    modifier = Modifier.size(32.dp),
-                    tint = Color.Gray
-                )
+                if (!produto.fotoPathLocal.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = produto.fotoPathLocal,
+                        contentDescription = "Foto de ${produto.nome}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.ImageIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = Color.Gray
+                    )
+                }
 
                 if (produto.avaliacoes.isNotEmpty()) {
                     val media = produto.avaliacoes.map { it.nota }.average()
@@ -271,15 +283,26 @@ fun ProdutoItemCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp)
-                        .background(Color.LightGray, RoundedCornerShape(12.dp)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ImageIcon,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = Color.Gray
-                    )
+                    if (!produto.fotoPathLocal.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = produto.fotoPathLocal,
+                            contentDescription = "Foto de ${produto.nome}",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(12.dp))
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.ImageIcon,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = Color.Gray
+                        )
+                    }
 
                     if (produto.avaliacoes.isNotEmpty()) {
                         val media = produto.avaliacoes.map { it.nota }.average()

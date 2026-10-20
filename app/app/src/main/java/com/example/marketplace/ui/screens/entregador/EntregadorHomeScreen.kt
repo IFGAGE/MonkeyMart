@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,7 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.marketplace.R
-import com.example.marketplace.ui.screens.profile.VeiculoTemp // <-- Import da tela que criamos acima
+import com.example.marketplace.ui.screens.profile.VeiculoTemp
 
 data class PedidoTemp(
     val id: Int,
@@ -40,7 +41,8 @@ fun EntregadorHomeScreen(
     veiculos: List<VeiculoTemp>,
     onAddVeiculoClick: () -> Unit,
     onProfileClick: () -> Unit,
-    onMarcarComoEntregue: (Int) -> Unit
+    onMarcarComoEntregue: (Int) -> Unit,
+    onVerMapaClick: (Int, String) -> Unit
 ) {
     val isDarkTheme = isSystemInDarkTheme()
     val logo = if (isDarkTheme) R.drawable.mm_branco else R.drawable.mm_preto
@@ -51,18 +53,18 @@ fun EntregadorHomeScreen(
                 title = {
                     Image(
                         painter = painterResource(id = logo),
-                        contentDescription = "Logo Monkey Mart",
+                        contentDescription = null,
                         modifier = Modifier.height(40.dp)
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onAddVeiculoClick) {
-                        Icon(imageVector = Icons.Default.LocalShipping, contentDescription = "Adicionar Veículo")
+                        Icon(imageVector = Icons.Default.LocalShipping, contentDescription = null)
                     }
                 },
                 actions = {
                     IconButton(onClick = onProfileClick) {
-                        Icon(imageVector = Icons.Default.AccountCircle, contentDescription = "Perfil")
+                        Icon(imageVector = Icons.Default.AccountCircle, contentDescription = null)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -90,7 +92,12 @@ fun EntregadorHomeScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(pedidos) { pedido ->
-                        PedidoItemCard(pedido = pedido, veiculos = veiculos, onMarcarComoEntregue = onMarcarComoEntregue)
+                        PedidoItemCard(
+                            pedido = pedido,
+                            veiculos = veiculos,
+                            onMarcarComoEntregue = onMarcarComoEntregue,
+                            onVerMapaClick = onVerMapaClick
+                        )
                     }
                 }
             }
@@ -103,10 +110,10 @@ fun EntregadorHomeScreen(
 fun PedidoItemCard(
     pedido: PedidoTemp,
     veiculos: List<VeiculoTemp>,
-    onMarcarComoEntregue: (Int) -> Unit
+    onMarcarComoEntregue: (Int) -> Unit,
+    onVerMapaClick: (Int, String) -> Unit
 ) {
     var showSheet by remember { mutableStateOf(false) }
-    // Estado para guardar qual veículo o entregador clicou
     var veiculoSelecionado by remember { mutableStateOf<VeiculoTemp?>(null) }
 
     Card(
@@ -129,7 +136,7 @@ fun PedidoItemCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(imageVector = Icons.Default.Place, contentDescription = "Endereço", modifier = Modifier.size(20.dp), tint = Color.Gray)
+                Icon(imageVector = Icons.Default.Place, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(text = pedido.enderecoEntrega, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -140,7 +147,7 @@ fun PedidoItemCard(
         ModalBottomSheet(
             onDismissRequest = {
                 showSheet = false
-                veiculoSelecionado = null // Reseta ao fechar
+                veiculoSelecionado = null
             },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
         ) {
@@ -156,6 +163,22 @@ fun PedidoItemCard(
                 Text(text = pedido.enderecoEntrega, fontSize = 18.sp)
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        onVerMapaClick(pedido.id, pedido.enderecoEntrega)
+                        showSheet = false
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    Icon(imageVector = Icons.Default.Map, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Visualizar no Mapa", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Text(text = "Resumo dos Itens", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Gray)
                 Text(text = pedido.resumoItens, fontSize = 18.sp)
@@ -202,7 +225,7 @@ fun PedidoItemCard(
                     shape = RoundedCornerShape(12.dp),
                     enabled = veiculoSelecionado != null
                 ) {
-                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "Concluir")
+                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Marcar como Entregue", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }

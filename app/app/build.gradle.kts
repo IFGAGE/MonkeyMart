@@ -11,13 +11,13 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.marketplace"
+        applicationId = "com.monkeymart.app"
         minSdk = 23
-        targetSdk = 37
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.example.marketplace.Entrega5TestRunner"
     }
 
     buildTypes {
@@ -56,19 +56,24 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // Firebase
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
-    // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // Icons
     implementation("androidx.compose.material:material-icons-extended")
 
-    // Room 3
     implementation(libs.androidx.room3.runtime)
     ksp(libs.androidx.room3.compiler)
+
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+
+    implementation(libs.osmdroid.android)
+    implementation(libs.androidx.preference.ktx)
 }
