@@ -1,5 +1,7 @@
 package com.example.marketplace.ui.screens.negociante
 
+import androidx.activity.compose.BackHandler
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +17,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Image as ImageIcon
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,11 +26,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.example.marketplace.data.entity.EnderecoValidado
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,15 +43,14 @@ fun CarrinhoScreen(
     onAumentar: (ItemCarrinho) -> Unit,
     onDiminuir: (ItemCarrinho) -> Unit,
     onRemover: (ItemCarrinho) -> Unit,
-    onFinalizarPedido: suspend (endereco: String, total: String) -> Unit,
+    onFinalizarPedido: suspend (endereco: EnderecoValidado, total: String) -> Unit,
     onVoltar: () -> Unit
 ) {
-    var showCheckoutDialog by remember { mutableStateOf(false) }
-    var endereco by remember { mutableStateOf("") }
-    var erroEndereco by remember { mutableStateOf(false) }
-    var mostrarSucesso by remember { mutableStateOf(false) }
+    var finalizandoCompra by rememberSaveable { mutableStateOf(false) }
+    var endereco by remember { mutableStateOf<EnderecoValidado?>(null) }
+    var mostrarSucesso by rememberSaveable { mutableStateOf(false) }
     var salvando by remember { mutableStateOf(false) }
-    var erroSalvar by remember { mutableStateOf(false) }
+    var erroSalvar by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     val totalDouble = itensCarrinho.sumOf { item ->
@@ -57,32 +63,63 @@ fun CarrinhoScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
+                .background(MaterialTheme.colorScheme.background)
+                .safeDrawingPadding(),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(modifier = Modifier.widthIn(max = 400.dp).fillMaxWidth()
+                .verticalScroll(rememberScrollState()).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Sucesso",
                     tint = Color(0xFF4CAF50),
-                    modifier = Modifier.size(100.dp)
+                    modifier = Modifier.size(88.dp)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Pedido Concluído!", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("Compra concluída!", fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Pedido salvo. A sincronização ocorre quando houver conexão.", color = Color.Gray, fontSize = 16.sp)
+                Text("Acompanhe seus pedidos em Minhas compras.", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 16.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Button(
                     onClick = {
                         onVoltar()
                     },
-                    modifier = Modifier.height(50.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                 ) {
-                    Text("Voltar para o Início", fontSize = 16.sp)
+                    Text("Voltar ao início", fontSize = 16.sp)
                 }
             }
         }
+        return
+    }
+
+    if (finalizandoCompra) {
+        BackHandler { if (!salvando) finalizandoCompra = false }
+        FinalizarCompraScreen(total = totalFormatado,
+            quantidadeVendedores = itensCarrinho.map { it.produto.emailDono }.distinct().size,
+            salvando = salvando, podeFinalizar = endereco?.valido() == true, erro = erroSalvar,
+            onEndereco = { endereco = it; erroSalvar = null },
+            onVoltar = { if (!salvando) finalizandoCompra = false },
+            onConfirmar = {
+                val confirmado = endereco
+                if (confirmado?.valido() == true && !salvando) {
+                    salvando = true
+                    erroSalvar = null
+                    scope.launch {
+                        try {
+                            onFinalizarPedido(confirmado, totalFormatado)
+                            finalizandoCompra = false
+                            mostrarSucesso = true
+                        } catch (e: CancellationException) { throw e }
+                        catch (e: Exception) { erroSalvar = e.message ?: "Não foi possível concluir a compra. Tente novamente." }
+                        finally { salvando = false }
+                    }
+                }
+            })
         return
     }
 
@@ -112,10 +149,10 @@ fun CarrinhoScreen(
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
-                            onClick = { showCheckoutDialog = true },
+                            onClick = { endereco = null; erroSalvar = null; finalizandoCompra = true },
                             modifier = Modifier.fillMaxWidth().height(50.dp)
                         ) {
-                            Text("Ir para o Pagamento", fontSize = 16.sp)
+                            Text("Continuar compra", fontSize = 16.sp)
                         }
                     }
                 }
@@ -144,65 +181,6 @@ fun CarrinhoScreen(
         }
     }
 
-    if (showCheckoutDialog) {
-        AlertDialog(
-            onDismissRequest = { if (!salvando) showCheckoutDialog = false },
-            title = { Text("Finalizar Pedido") },
-            text = {
-                Column {
-                    Text("Você está prestes a pagar R$ $totalFormatado.")
-                    if (erroSalvar) Text("Não foi possível salvar o pedido. Tente novamente.", color = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = endereco,
-                        onValueChange = {
-                            endereco = it
-                            erroEndereco = false
-                        },
-                        label = { Text("Endereço de Entrega") },
-                        isError = erroEndereco,
-                        supportingText = {
-                            if (erroEndereco) {
-                                Text("Obrigatório informar o endereço.")
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (endereco.isNotBlank()) {
-                            salvando = true
-                            erroSalvar = false
-                            scope.launch {
-                                try {
-                                    onFinalizarPedido(endereco.trim(), totalFormatado)
-                                    showCheckoutDialog = false
-                                    mostrarSucesso = true
-                                } catch (e: CancellationException) {
-                                    throw e
-                                } catch (e: Exception) {
-                                    erroSalvar = true
-                                } finally {
-                                    salvando = false
-                                }
-                            }
-                        } else {
-                            erroEndereco = true
-                        }
-                    },
-                    enabled = !salvando
-                ) {
-                    Text(if (salvando) "Salvando..." else "Pagar e Finalizar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCheckoutDialog = false }, enabled = !salvando) { Text("Cancelar") }
-            }
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

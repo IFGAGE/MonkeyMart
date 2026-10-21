@@ -1,5 +1,7 @@
 package com.example.marketplace.ui.screens.profile
 
+import com.example.marketplace.data.entity.descricaoStatusCliente
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,7 +35,7 @@ fun MeusPedidosScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Meus Pedidos") },
+                title = { Text("Minhas compras") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, "Voltar") }
                 }
@@ -42,7 +44,7 @@ fun MeusPedidosScreen(
     ) { paddingValues ->
         if (pedidos.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                Text("Você ainda não fez nenhum pedido.", color = Color.Gray, fontSize = 16.sp)
+                Text("Você ainda não realizou compras.", color = Color.Gray, fontSize = 16.sp)
             }
         } else {
             LazyColumn(
@@ -83,7 +85,7 @@ fun PedidoClienteCard(pedido: PedidoCliente) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Status: ${pedido.statusEntrega}", 
+                text = "Status: ${descricaoStatusCliente(pedido.statusEntrega)}",
                 fontSize = 14.sp, 
                 fontWeight = FontWeight.SemiBold,
                 color = if (pedido.statusEntrega == "ENTREGUE") Color(0xFF4CAF50) else Color(0xFFFFA000)
@@ -114,7 +116,7 @@ fun PedidoClienteCard(pedido: PedidoCliente) {
 
                 Text(text = "Status Atual", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Gray)
                 Text(
-                    text = pedido.statusEntrega, 
+                    text = descricaoStatusCliente(pedido.statusEntrega),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (pedido.statusEntrega == "ENTREGUE") Color(0xFF4CAF50) else Color(0xFFFFA000)

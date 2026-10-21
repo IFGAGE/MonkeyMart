@@ -1,34 +1,35 @@
 package com.example.marketplace.ui.screens.negociante
 
-import android.Manifest
-import android.content.pm.PackageManager
+import android.app.Activity
+import android.content.ClipData
+import android.content.Intent
 import android.net.Uri
+import android.provider.MediaStore
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.ui.semantics.Role
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.layout.ContentScale
 
-import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.example.marketplace.data.local.GerenciadorDeFotos
 import java.io.File
@@ -42,55 +43,67 @@ fun CadastroProdutoScreen(
     val context = LocalContext.current
     val gerenciadorDeFotos = remember { GerenciadorDeFotos(context) }
 
-    var nome by remember { mutableStateOf("") }
-    var descricao by remember { mutableStateOf("") }
-    var preco by remember { mutableStateOf("") }
+    var nome by rememberSaveable { mutableStateOf("") }
+    var descricao by rememberSaveable { mutableStateOf("") }
+    var preco by rememberSaveable { mutableStateOf("") }
 
-    var arquivoDaFotoAtual by remember { mutableStateOf<File?>(null) }
-    var uriDaFotoLocal by remember { mutableStateOf<Uri?>(null) }
+    var fotoPathLocal by rememberSaveable { mutableStateOf<String?>(null) }
+    var capturaPendentePath by rememberSaveable { mutableStateOf<String?>(null) }
+    var erroFoto by remember { mutableStateOf<String?>(null) }
+    val uriDaFotoLocal = fotoPathLocal?.let { Uri.fromFile(File(it)) }
 
-    val disparadorTirarFoto = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { sucesso ->
-        if (sucesso) {
-            uriDaFotoLocal = arquivoDaFotoAtual?.let { Uri.fromFile(it) }
-        }
-    }
-
-    val disparadorEscolherImagem = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        uri?.let { origem ->
-            val (destino, _) = gerenciadorDeFotos.criarArquivoDeImagem()
-            context.contentResolver.openInputStream(origem)?.use { entrada ->
-                destino.outputStream().use { saida -> entrada.copyTo(saida) }
+    val disparadorImagem = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { resultado ->
+        val captura = capturaPendentePath?.let(::File)
+        try {
+            if (resultado.resultCode == Activity.RESULT_OK) {
+                if (captura != null && captura.length() > 0) {
+                    fotoPathLocal = captura.absolutePath
+                } else {
+                    val origem = checkNotNull(resultado.data?.data)
+                    val (destino, _) = gerenciadorDeFotos.criarArquivoDeImagem()
+                    try {
+                        checkNotNull(context.contentResolver.openInputStream(origem)).use { entrada ->
+                            destino.outputStream().use { saida -> entrada.copyTo(saida) }
+                        }
+                        check(destino.length() > 0)
+                        fotoPathLocal = destino.absolutePath
+                    } finally {
+                        if (destino.absolutePath != fotoPathLocal) destino.delete()
+                    }
+                }
             }
-            arquivoDaFotoAtual = destino
-            uriDaFotoLocal = Uri.fromFile(destino)
+        } catch (e: Exception) {
+            erroFoto = "Não foi possível adicionar a foto. Tente novamente."
+        } finally {
+            if (captura?.absolutePath != fotoPathLocal) captura?.delete()
+            capturaPendentePath = null
         }
     }
 
-    val pedirPermissaoCamera = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { concedida ->
-        if (concedida) {
+    fun escolherFoto() {
+        erroFoto = null
+        try {
             val (arquivo, uri) = gerenciadorDeFotos.criarArquivoDeImagem()
-            arquivoDaFotoAtual = arquivo
-            disparadorTirarFoto.launch(uri)
-        }
-    }
-
-    fun abrirCamera() {
-        val permissaoConcedida = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (permissaoConcedida) {
-            val (arquivo, uri) = gerenciadorDeFotos.criarArquivoDeImagem()
-            arquivoDaFotoAtual = arquivo
-            disparadorTirarFoto.launch(uri)
-        } else {
-            pedirPermissaoCamera.launch(Manifest.permission.CAMERA)
+            capturaPendentePath = arquivo.absolutePath
+            val camera = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                clipData = ClipData.newRawUri("Foto do produto", uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            }
+            val galeria = Intent(Intent.ACTION_GET_CONTENT).apply {
+                type = "image/*"
+                addCategory(Intent.CATEGORY_OPENABLE)
+            }
+            val escolha = Intent.createChooser(galeria, "Adicionar foto do produto").apply {
+                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(camera))
+            }
+            disparadorImagem.launch(escolha)
+        } catch (e: Exception) {
+            capturaPendentePath?.let { File(it).delete() }
+            capturaPendentePath = null
+            erroFoto = "Não foi possível abrir o seletor de imagens."
         }
     }
 
@@ -109,8 +122,10 @@ fun CadastroProdutoScreen(
         Column(
             modifier = Modifier
                 .padding(paddingValues)
-                .padding(24.dp)
                 .fillMaxSize()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp)
         ) {
             // Área de foto — campo com placeholder estilizado
             Box(
@@ -118,6 +133,11 @@ fun CadastroProdutoScreen(
                     .fillMaxWidth()
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(12.dp))
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = if (fotoPathLocal == null) "Adicionar foto do produto" else "Trocar foto do produto",
+                        onClick = { escolherFoto() }
+                    )
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(
                         width = 1.5.dp,
@@ -155,28 +175,7 @@ fun CadastroProdutoScreen(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(onClick = { abrirCamera() }, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Câmera")
-                }
-                OutlinedButton(
-                    onClick = {
-                        disparadorEscolherImagem.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.PhotoLibrary, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Galeria")
-                }
-            }
+            erroFoto?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -194,8 +193,8 @@ fun CadastroProdutoScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
             Button(
-                onClick = { onSalvar(nome, descricao, preco, arquivoDaFotoAtual?.absolutePath) },
-                modifier = Modifier.fillMaxWidth()
+                onClick = { onSalvar(nome, descricao, preco, fotoPathLocal) },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
                 Text("Salvar Produto")
             }

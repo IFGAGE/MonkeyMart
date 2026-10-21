@@ -5,6 +5,30 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PedidoRemotoTest {
+    @Test fun snapshotAtrasadoNaoDesfazReservaSincronizada() {
+        val local = pedido(id = 7, status = "EM_ROTA").copy(revisao = 2, emailEntregador = "motorista")
+        assertEquals(local, mesclarPedido(local, pedido(status = "PRONTO_RETIRADA").copy(revisao = 1)))
+    }
+    @Test fun transportaVendedorColetaEntregaERevisao() {
+        val original = pedido().copy(emailNegociante = "vendedor", enderecoColeta = "Rua C, 1",
+            coletaLatitude = -16.7, coletaLongitude = -49.3, entregaLatitude = -16.8,
+            entregaLongitude = -49.4, emailEntregador = "motorista", revisao = 2, coletado = true)
+        assertEquals(original, pedidoRemoto(original.firestoreId, dadosPedido(original)))
+    }
+    @Test fun pedidoLegadoEntregueJaTemColetaConcluida() {
+        val dados = dadosPedido(pedido(status = "ENTREGUE")).toMutableMap()
+        dados.remove("coletado")
+        assertTrue(pedidoRemoto("legado", dados)!!.coletado)
+        dados["statusEntrega"] = "EM_ROTA"
+        assertFalse(pedidoRemoto("legado", dados)!!.coletado)
+    }
+    @Test fun revisaoRemotaMaisNovaSuperaAlteracaoLocalObsoleta() {
+        val local = pedido(id = 7, synced = false, status = "PRONTO_RETIRADA").copy(revisao = 1)
+        val remoto = pedido(status = "EM_ROTA").copy(revisao = 2, emailEntregador = "motorista")
+        val resultado = mesclarPedido(local, remoto)
+        assertEquals("EM_ROTA", resultado.statusEntrega)
+        assertEquals(7, resultado.id)
+    }
     private fun pedido(id: Int = 0, synced: Boolean = true, status: String = "PENDENTE") = PedidoEntity(
         id, "cliente@teste.invalid", "Rua A, 10", "1x Produto", "10.00", status, synced, "remoto-a"
     )

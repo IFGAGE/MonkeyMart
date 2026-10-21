@@ -24,18 +24,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.coroutines.resume
 
-data class ParadaRota(
-    val pedidoId: Int,
-    val endereco: String,
-    val coordenadas: Coordenadas
-)
-
-data class RotaGerada(
-    val origem: Coordenadas,
-    val paradas: List<ParadaRota>,
-    val geometria: List<Coordenadas>
-)
-
 @SuppressLint("MissingPermission")
 suspend fun localizarAtual(context: Context): Coordenadas = try {
     withTimeout(17_000) {
@@ -87,55 +75,41 @@ private suspend fun solicitarLocalizacao(
 suspend fun gerarRota(context: Context, pedidos: List<PedidoTemp>): RotaGerada {
     require(pedidos.isNotEmpty()) { "Selecione ao menos um pedido." }
     val origem = localizarAtual(context)
-    val paradas = pedidos.map { pedido ->
-        val coordenadas = when (
-            val resultado = buscarEndereco(pedido.enderecoEntrega, { localizarEndereco(context, it) })
-        ) {
-            is EstadoBuscaEndereco.Encontrado -> resultado.coordenadas
-            is EstadoBuscaEndereco.Erro -> throw IOException("Pedido #${pedido.id}: ${resultado.mensagem}")
-            else -> throw IOException("Pedido #${pedido.id}: endereço não encontrado.")
+    return withContext(Dispatchers.Default) {
+        val paradas = agruparParadas(pedidos.flatMap { pedido ->
+            require(pedido.statusEntrega == "PRONTO_RETIRADA") { "Pedido #${pedido.id} ainda não está pronto para retirada." }
+            val coleta = Coordenadas(checkNotNull(pedido.coletaLatitude), checkNotNull(pedido.coletaLongitude))
+            val entrega = Coordenadas(checkNotNull(pedido.entregaLatitude), checkNotNull(pedido.entregaLongitude))
+            validarCoordenadas(coleta)
+            validarCoordenadas(entrega)
+            require(pedido.enderecoColeta.isNotBlank() && pedido.enderecoEntrega.isNotBlank()) { "Endereço não validado." }
+            listOf(ParadaRota(pedido.id, pedido.enderecoColeta, coleta, TipoParada.COLETA),
+                ParadaRota(pedido.id, pedido.enderecoEntrega, entrega, TipoParada.ENTREGA))
+        })
+        val pontos = listOf(origem) + paradas.map { it.coordenadas }
+        val matriz = consultarOsrm("table", pontos, "annotations=duration").getJSONArray("durations")
+        val duracoes = (0 until matriz.length()).map { linha ->
+            val valores = matriz.getJSONArray(linha)
+            (0 until valores.length()).map { coluna -> if (valores.isNull(coluna)) null else valores.getDouble(coluna) }
         }
-        ParadaRota(pedido.id, pedido.enderecoEntrega, coordenadas)
+        val ordem = ordenarParadasComColeta(duracoes, paradas)
+        val paradasOrdenadas = ordem.map { paradas[it] }
+        val pontosOrdenados = listOf(origem) + paradasOrdenadas.map { it.coordenadas }
+        val respostaRota = consultarOsrm(
+            "route",
+            pontosOrdenados,
+            "geometries=geojson&overview=full&steps=false"
+        )
+        val coordenadasJson = respostaRota.getJSONArray("routes")
+            .takeIf { it.length() > 0 }
+            ?.getJSONObject(0)
+            ?.getJSONObject("geometry")
+            ?.getJSONArray("coordinates")
+            ?: throw IOException("O serviço não retornou um trajeto.")
+        val geometria = coordenadasJson.toCoordenadas()
+        if (geometria.size < 2) throw IOException("O trajeto retornado é inválido.")
+        RotaGerada(origem, paradasOrdenadas, geometria)
     }
-    val pontos = listOf(origem) + paradas.map { it.coordenadas }
-    val matriz = consultarOsrm("table", pontos, "annotations=duration").getJSONArray("durations")
-    val ordem = ordenarParadas(matriz, paradas.size)
-    val paradasOrdenadas = ordem.map { paradas[it - 1] }
-    val pontosOrdenados = listOf(origem) + paradasOrdenadas.map { it.coordenadas }
-    val respostaRota = consultarOsrm(
-        "route",
-        pontosOrdenados,
-        "geometries=geojson&overview=full&steps=false"
-    )
-    val coordenadasJson = respostaRota.getJSONArray("routes")
-        .takeIf { it.length() > 0 }
-        ?.getJSONObject(0)
-        ?.getJSONObject("geometry")
-        ?.getJSONArray("coordinates")
-        ?: throw IOException("O serviço não retornou um trajeto.")
-    val geometria = coordenadasJson.toCoordenadas()
-    if (geometria.size < 2) throw IOException("O trajeto retornado é inválido.")
-    return RotaGerada(origem, paradasOrdenadas, geometria)
-}
-
-private fun ordenarParadas(matriz: JSONArray, quantidade: Int): List<Int> {
-    require(matriz.length() == quantidade + 1) { "Matriz de rota inválida." }
-    val restantes = (1..quantidade).toMutableSet()
-    val ordem = mutableListOf<Int>()
-    var atual = 0
-    while (restantes.isNotEmpty()) {
-        val duracoes = matriz.getJSONArray(atual)
-        val proximo = restantes.minByOrNull { indice ->
-            if (duracoes.isNull(indice)) Double.POSITIVE_INFINITY else duracoes.getDouble(indice)
-        } ?: throw IOException("Não há rota entre os endereços selecionados.")
-        if (duracoes.isNull(proximo) || !duracoes.getDouble(proximo).isFinite()) {
-            throw IOException("Não há rota entre os endereços selecionados.")
-        }
-        ordem += proximo
-        restantes -= proximo
-        atual = proximo
-    }
-    return ordem
 }
 
 private suspend fun consultarOsrm(
@@ -165,13 +139,15 @@ private suspend fun consultarOsrm(
 
 fun RotaGerada.paraEntity(emailEntregador: String) = RotaEntity(
     emailEntregador = emailEntregador,
-    pedidosJson = JSONArray(paradas.map { it.pedidoId }).toString(),
+    pedidosJson = JSONArray(paradas.flatMap { it.pedidoIds }.distinct()).toString(),
     origemJson = origem.toJson().toString(),
     destinosJson = JSONArray().apply {
         paradas.forEach { parada ->
             put(JSONObject().apply {
                 put("pedidoId", parada.pedidoId)
+                put("pedidoIds", JSONArray(parada.pedidoIds))
                 put("endereco", parada.endereco)
+                put("tipo", parada.tipo.name)
                 put("coordenadas", parada.coordenadas.toJson())
             })
         }
@@ -189,14 +165,19 @@ fun RotaEntity.paraRotaGerada(): RotaGerada {
         ParadaRota(
             pedidoId = parada.getInt("pedidoId"),
             endereco = parada.getString("endereco"),
-            coordenadas = parada.getJSONObject("coordenadas").toCoordenadas()
+            coordenadas = parada.getJSONObject("coordenadas").toCoordenadas(),
+            tipo = TipoParada.valueOf(parada.optString("tipo", "ENTREGA")),
+            pedidoIds = parada.optJSONArray("pedidoIds")?.let { ids ->
+                (0 until ids.length()).map { ids.getInt(it) }
+            } ?: listOf(parada.getInt("pedidoId"))
         )
     }
     val geometria = JSONArray(geometriaJson).toCoordenadas()
     require(
-        paradas.isNotEmpty() && geometria.size >= 2 && pedidoIds() == paradas.map { it.pedidoId }
+        paradas.isNotEmpty() && paradas.all { it.pedidoIds.isNotEmpty() && it.pedidoId in it.pedidoIds } &&
+            geometria.size >= 2 && pedidoIds() == paradas.flatMap { it.pedidoIds }.distinct()
     ) { "Dados da rota inválidos." }
-    return RotaGerada(origem, paradas, geometria)
+    return RotaGerada(origem, agruparParadasConsecutivas(paradas), geometria)
 }
 
 fun RotaEntity.pedidoIds(): List<Int> {

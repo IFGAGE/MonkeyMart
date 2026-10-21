@@ -15,5 +15,14 @@ data class PedidoEntity(
     val valorTotal: String,
     val statusEntrega: String = "PENDENTE",
     val isSynced: Boolean = false,
-    @ColumnInfo(defaultValue = "''") val firestoreId: String = UUID.randomUUID().toString()
+    @ColumnInfo(defaultValue = "''") val firestoreId: String = UUID.randomUUID().toString(),
+    @ColumnInfo(defaultValue = "''") val emailNegociante: String = "",
+    @ColumnInfo(defaultValue = "''") val enderecoColeta: String = "",
+    val coletaLatitude: Double? = null,
+    val coletaLongitude: Double? = null,
+    val entregaLatitude: Double? = null,
+    val entregaLongitude: Double? = null,
+    @ColumnInfo(defaultValue = "''") val emailEntregador: String = "",
+    @ColumnInfo(defaultValue = "0") val revisao: Int = 0,
+    @ColumnInfo(defaultValue = "0") val coletado: Boolean = false
 )

@@ -24,17 +24,24 @@ import kotlinx.coroutines.sync.withLock
 import com.google.firebase.firestore.MetadataChanges
 
 
-suspend fun sincronizarProdutos(produtoDao: ProdutoDao) {
+private val produtoSyncMutex = Mutex()
+
+suspend fun sincronizarProdutos(produtoDao: ProdutoDao) = produtoSyncMutex.withLock {
     val firestore = Firebase.firestore
     val produtosPendentes = produtoDao.buscarNaoSincronizados()
 
     produtosPendentes.forEach { produto ->
-        firestore.collection("produtos")
-            .document(produto.id.toString())
-            .set(produto)
-            .await()
-
-        produtoDao.marcarComoSincronizado(produto.id)
+        val ref = firestore.collection("produtos").document(produto.firestoreId)
+        val atual = firestore.runTransaction { transaction ->
+            val snapshot = transaction.get(ref)
+            val remoto = snapshot.data?.let { produtoRemoto(snapshot.id, it) }
+            if (remoto == null || remoto.revisao < produto.revisao) {
+                transaction.set(ref, produto)
+                produto.copy(isSynced = true)
+            } else remoto
+        }.await()
+        produtoDao.confirmarEnvio(produto)
+        produtoDao.receberProduto(atual)
     }
 }
 
@@ -72,11 +79,45 @@ private val pedidoSyncMutex = Mutex()
 suspend fun sincronizarPedidos(pedidoDao: PedidoDao) = pedidoSyncMutex.withLock {
     val firestore = Firebase.firestore
     pedidoDao.buscarNaoSincronizados().forEach { pedido ->
-        firestore.collection("pedidos")
-            .document(pedido.firestoreId)
-            .set(dadosPedido(pedido))
-            .await()
-        pedidoDao.marcarComoSincronizado(pedido.id, pedido.statusEntrega)
+        val ref = firestore.collection("pedidos").document(pedido.firestoreId)
+        val atual = firestore.runTransaction { transaction ->
+            val snapshot = transaction.get(ref)
+            val remoto = snapshot.data?.let { pedidoRemoto(snapshot.id, it) }
+            if (remoto == null || remoto.revisao < pedido.revisao) {
+                transaction.set(ref, dadosPedido(pedido))
+                pedido.copy(isSynced = true)
+            } else remoto
+        }.await()
+        pedidoDao.marcarComoSincronizado(pedido.id, pedido.statusEntrega, pedido.revisao)
+        pedidoDao.receberPedido(atual)
+    }
+}
+
+suspend fun acompanharProdutos(produtoDao: ProdutoDao) = coroutineScope {
+    launch {
+        while (isActive) {
+            try {
+                callbackFlow {
+                    val registration = Firebase.firestore.collection("produtos")
+                        .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+                            if (error != null) close(error)
+                            else if (snapshot != null) trySend(snapshot.documents
+                                .filter { !it.metadata.hasPendingWrites() }
+                                .mapNotNull { doc -> doc.data?.let { produtoRemoto(doc.id, it) } })
+                        }
+                    awaitClose { registration.remove() }
+                }.conflate().collect { produtos -> produtos.forEach { produtoDao.receberProduto(it) } }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { Log.e("Sync", "Falha ao receber produtos.", e); delay(15_000) }
+        }
+    }
+    launch {
+        while (isActive) {
+            try { sincronizarProdutos(produtoDao) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { Log.e("Sync", "Produtos aguardando conexão.", e) }
+            delay(15_000)
+        }
     }
 }
 

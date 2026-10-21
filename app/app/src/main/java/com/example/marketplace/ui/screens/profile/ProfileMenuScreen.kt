@@ -28,7 +28,7 @@ fun ProfileMenuScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Menu Principal") },
+                title = { Text("Minha conta") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, "Voltar") }
                 }
@@ -46,7 +46,7 @@ fun ProfileMenuScreen(
 
             if (tipoPerfil == "negociante") {
                 ListItem(
-                    headlineContent = { Text("Meus Pedidos", fontSize = 18.sp) },
+                    headlineContent = { Text("Minhas compras", fontSize = 18.sp) },
                     leadingContent = { Icon(Icons.Default.ListAlt, contentDescription = null) },
                     trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
                     modifier = Modifier.clickable { onMeusPedidosClick() }

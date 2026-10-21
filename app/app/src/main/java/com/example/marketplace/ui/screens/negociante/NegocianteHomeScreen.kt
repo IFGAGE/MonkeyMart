@@ -14,7 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
@@ -48,7 +48,9 @@ data class ProdutoTemp(
     val nomeDono: String,
     val fotoPathLocal: String?,
     val avaliacoes: List<AvaliacaoTemp> = emptyList(),
-    val podeAvaliar: Boolean = false
+    val podeAvaliar: Boolean = false,
+    val id: Int = 0,
+    val emailDono: String = ""
 )
 
 data class ItemCarrinho(
@@ -85,7 +87,7 @@ fun NegocianteHomeScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onAddProdutoClick) {
-                        Icon(Icons.Default.Add, contentDescription = "Adicionar Produto")
+                        Icon(Icons.Default.Storefront, contentDescription = "Área do negociante")
                     }
                 },
                 actions = {

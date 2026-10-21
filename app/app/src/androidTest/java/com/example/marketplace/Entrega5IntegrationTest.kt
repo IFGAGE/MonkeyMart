@@ -10,6 +10,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.marketplace.data.AppDatabase
 import com.example.marketplace.data.MIGRATION_3_4
+import com.example.marketplace.data.MIGRATION_4_5
+import com.example.marketplace.data.MIGRATION_5_6
+import com.example.marketplace.data.MIGRATION_6_7
+import com.example.marketplace.data.MIGRATION_7_8
 import com.example.marketplace.data.entity.PedidoEntity
 import com.example.marketplace.data.sync.acompanharPedidos
 import com.example.marketplace.data.sync.sincronizarPedidos
@@ -85,7 +89,7 @@ class Entrega5IntegrationTest {
             legacy.execSQL("INSERT INTO tabela_pedido VALUES (7, 'cliente@teste.invalid', 'Rua antiga, 20', 'Produto', '10.00', 'PENDENTE', 0)")
             legacy.version = 3
         }
-        val db = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_3_4).build()
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build()
         try {
             val pedido = db.pedidoDao().buscarPorFirestoreId("7")!!
             assertEquals(7, pedido.id)
