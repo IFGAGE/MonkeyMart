@@ -50,6 +50,11 @@ import com.example.marketplace.ui.screens.negociante.CarrinhoScreen
 import com.example.marketplace.ui.screens.entregador.EntregadorHomeScreen
 import com.example.marketplace.ui.screens.entregador.CadastroVeiculoScreen
 import com.example.marketplace.ui.screens.entregador.MapaEntregaScreen
+import com.example.marketplace.ui.screens.entregador.RotaEntregaScreen
+import com.example.marketplace.ui.mapa.gerarRota
+import com.example.marketplace.ui.mapa.paraEntity
+import com.example.marketplace.ui.mapa.paraRotaGerada
+import com.example.marketplace.ui.mapa.pedidoIds
 import com.example.marketplace.ui.screens.profile.ProfileScreen
 import com.example.marketplace.ui.screens.profile.UsuarioTemp
 
@@ -286,12 +291,15 @@ fun AppNavigation(
 
         composable("area_entregador") {
             val email = auth.currentUser?.email ?: ""
+            var gerandoRota by remember { mutableStateOf(false) }
+            var erroRota by remember { mutableStateOf<String?>(null) }
 
             LaunchedEffect(Unit) {
                 sincronizarTudo(db)
             }
 
             val pedidosPendentes by db.pedidoDao().buscarPedidosPendentes().collectAsState(initial = emptyList())
+            val rotaAtual by db.rotaDao().observar(email).collectAsState(initial = null)
             val pedidosVisuais = pedidosPendentes.map {
                 com.example.marketplace.ui.screens.entregador.PedidoTemp(
                     id = it.id,
@@ -303,30 +311,188 @@ fun AppNavigation(
                 )
             }
 
-            val veiculosList by db.veiculoDao().buscarVeiculosDoEntregador(email).collectAsState(initial = emptyList())
-            val veiculosVisuais = veiculosList.map {
-                com.example.marketplace.ui.screens.profile.VeiculoTemp(it.placa, it.modelo, it.marca, it.ano)
-            }
-
             EntregadorHomeScreen(
                 pedidos = pedidosVisuais,
-                veiculos = veiculosVisuais,
+                temRota = rotaAtual != null,
+                gerandoRota = gerandoRota,
+                erroRota = erroRota,
                 onAddVeiculoClick = { navController.navigate("cadastro_veiculo") },
                 onProfileClick = { navController.navigate("perfil") },
-                onMarcarComoEntregue = { pedidoId ->
+                onGerarRota = { selecionados ->
                     coroutineScope.launch {
-                        db.pedidoDao().atualizarStatus(pedidoId, "ENTREGUE")
+                        gerandoRota = true
+                        erroRota = null
                         try {
-                            sincronizarPedidos(db.pedidoDao())
+                            val rota = gerarRota(context.applicationContext, selecionados)
+                            db.rotaDao().salvar(rota.paraEntity(email))
+                            navController.navigate("rota_entrega")
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
                         } catch (e: Exception) {
-                            Log.e("Sync", "Offline: será reenviado automaticamente depois.", e)
+                            erroRota = e.message ?: "Não foi possível gerar a rota."
+                        } finally {
+                            gerandoRota = false
                         }
                     }
                 },
+                onContinuarRota = { navController.navigate("rota_entrega") },
+                onPermissaoNegada = { erroRota = "Permita o acesso à localização para gerar a rota." },
                 onVerMapaClick = { pedidoId, endereco ->
                     navController.navigate("mapa_entrega/$pedidoId?endereco=${Uri.encode(endereco)}")
                 }
             )
+        }
+
+        composable("rota_entrega") {
+            val email = auth.currentUser?.email ?: ""
+            val rota by db.rotaDao().observar(email).collectAsState(initial = null)
+            val rotaAtual = rota
+
+            if (rotaAtual == null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                val dadosRota = remember(rotaAtual) { runCatching { rotaAtual.paraRotaGerada() } }
+                val pedidoIds = remember(rotaAtual) { runCatching { rotaAtual.pedidoIds() }.getOrDefault(emptyList()) }
+                val pedidos by db.pedidoDao().buscarPorIds(pedidoIds).collectAsState(initial = emptyList())
+                val veiculos by db.veiculoDao().buscarVeiculosDoEntregador(email).collectAsState(initial = emptyList())
+                var processando by remember { mutableStateOf(false) }
+                var erro by remember { mutableStateOf<String?>(null) }
+
+                val pedidosOrdenados = pedidoIds.mapNotNull { pedidoId ->
+                    pedidos.find { it.id == pedidoId }?.let {
+                        com.example.marketplace.ui.screens.entregador.PedidoTemp(
+                            id = it.id,
+                            emailCliente = it.emailCliente,
+                            enderecoEntrega = it.enderecoEntrega,
+                            resumoItens = it.resumoItens,
+                            valorTotal = it.valorTotal,
+                            statusEntrega = it.statusEntrega
+                        )
+                    }
+                }
+                val veiculosVisuais = veiculos.map {
+                    com.example.marketplace.ui.screens.profile.VeiculoTemp(it.placa, it.modelo, it.marca, it.ano)
+                }
+
+                dadosRota.fold(
+                    onSuccess = { rotaGerada ->
+                        RotaEntregaScreen(
+                            rota = rotaAtual,
+                            rotaGerada = rotaGerada,
+                            pedidos = pedidosOrdenados,
+                            veiculos = veiculosVisuais,
+                            processando = processando,
+                            erro = erro,
+                            onVoltar = { navController.popBackStack() },
+                            onCadastrarVeiculo = { navController.navigate("cadastro_veiculo") },
+                            onExcluir = {
+                                coroutineScope.launch {
+                                    processando = true
+                                    try {
+                                        db.rotaDao().excluirPlanejada(email)
+                                        navController.popBackStack()
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        erro = e.message
+                                    } finally {
+                                        processando = false
+                                    }
+                                }
+                            },
+                            onIniciar = { placa ->
+                                coroutineScope.launch {
+                                    processando = true
+                                    erro = null
+                                    try {
+                                        db.rotaDao().iniciar(email, placa, pedidoIds)
+                                        try {
+                                            sincronizarPedidos(db.pedidoDao())
+                                        } catch (e: kotlinx.coroutines.CancellationException) {
+                                            throw e
+                                        } catch (e: Exception) {
+                                            Log.e("Sync", "Início da rota pendente de sincronização.", e)
+                                        }
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        erro = e.message ?: "Não foi possível iniciar a rota."
+                                    } finally {
+                                        processando = false
+                                    }
+                                }
+                            },
+                            onAlternarEntrega = { pedido ->
+                                coroutineScope.launch {
+                                    processando = true
+                                    erro = null
+                                    val novoStatus = if (pedido.statusEntrega == "ENTREGUE") "EM_ROTA" else "ENTREGUE"
+                                    try {
+                                        db.pedidoDao().atualizarStatus(pedido.id, novoStatus)
+                                        try {
+                                            sincronizarPedidos(db.pedidoDao())
+                                        } catch (e: kotlinx.coroutines.CancellationException) {
+                                            throw e
+                                        } catch (e: Exception) {
+                                            Log.e("Sync", "Status local pendente de sincronização.", e)
+                                        }
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        erro = e.message ?: "Não foi possível atualizar o pedido."
+                                    } finally {
+                                        processando = false
+                                    }
+                                }
+                            },
+                            onCancelar = {
+                                coroutineScope.launch {
+                                    processando = true
+                                    try {
+                                        db.rotaDao().cancelar(email, pedidoIds)
+                                        try {
+                                            sincronizarPedidos(db.pedidoDao())
+                                        } catch (e: kotlinx.coroutines.CancellationException) {
+                                            throw e
+                                        } catch (e: Exception) {
+                                            Log.e("Sync", "Cancelamento local pendente de sincronização.", e)
+                                        }
+                                        navController.popBackStack()
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        erro = e.message ?: "Não foi possível cancelar a rota."
+                                    } finally {
+                                        processando = false
+                                    }
+                                }
+                            },
+                            onFinalizar = {
+                                coroutineScope.launch {
+                                    processando = true
+                                    try {
+                                        db.rotaDao().finalizar(email, pedidoIds)
+                                        navController.popBackStack()
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        erro = e.message
+                                    } finally {
+                                        processando = false
+                                    }
+                                }
+                            }
+                        )
+                    },
+                    onFailure = {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            androidx.compose.material3.Text("Os dados salvos da rota são inválidos.")
+                        }
+                    }
+                )
+            }
         }
 
         composable("mapa_entrega/{pedidoId}?endereco={endereco}") { backStackEntry ->

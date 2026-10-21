@@ -12,3 +12,21 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         connection.execSQL("CREATE UNIQUE INDEX index_tabela_pedido_firestoreId ON tabela_pedido(firestoreId)")
     }
 }
+
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS tabela_rota (
+                emailEntregador TEXT NOT NULL PRIMARY KEY,
+                estado TEXT NOT NULL,
+                placaVeiculo TEXT,
+                pedidosJson TEXT NOT NULL,
+                origemJson TEXT NOT NULL,
+                destinosJson TEXT NOT NULL,
+                geometriaJson TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+}
