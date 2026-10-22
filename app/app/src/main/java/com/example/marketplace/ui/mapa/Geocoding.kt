@@ -14,10 +14,10 @@ import kotlin.coroutines.resumeWithException
 
 suspend fun localizarEndereco(context: Context, endereco: String): Coordenadas? {
     if (!Geocoder.isPresent()) throw IOException("Geocoder indisponível neste dispositivo")
-    val geocoder = Geocoder(context.applicationContext, Locale.getDefault())
+    val geocoder = Geocoder(context.applicationContext, Locale("pt", "BR"))
     val resultados = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         suspendCancellableCoroutine<List<Address>> { continuation ->
-            geocoder.getFromLocationName(endereco, 1, object : Geocoder.GeocodeListener {
+            geocoder.getFromLocationName(endereco, 5, -34.0, -74.0, 6.0, -28.0, object : Geocoder.GeocodeListener {
                 override fun onGeocode(addresses: MutableList<Address>) {
                     if (continuation.isActive) continuation.resume(addresses)
                 }
@@ -31,10 +31,12 @@ suspend fun localizarEndereco(context: Context, endereco: String): Coordenadas? 
     } else {
         withContext(Dispatchers.IO) {
             @Suppress("DEPRECATION")
-            geocoder.getFromLocationName(endereco, 1).orEmpty()
+            geocoder.getFromLocationName(endereco, 5, -34.0, -74.0, 6.0, -28.0).orEmpty()
         }
     }
-    return resultados.firstOrNull()
-        ?.takeIf { it.hasLatitude() && it.hasLongitude() }
-        ?.let { Coordenadas(it.latitude, it.longitude) }
+    return selecionarEnderecoBrasileiro(resultados.map {
+        ResultadoGeocodificacao(
+            Coordenadas(if (it.hasLatitude()) it.latitude else Double.NaN,
+                if (it.hasLongitude()) it.longitude else Double.NaN), it.countryCode)
+    })
 }

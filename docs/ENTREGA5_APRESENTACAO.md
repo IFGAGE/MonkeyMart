@@ -29,7 +29,7 @@ Abra `mapa/Geocoding.kt`.
 - Linhas 31–35: em versões antigas, usa a chamada compatível numa thread para operações de entrada e saída.
 - Linhas 37–39: extrai latitude e longitude do primeiro resultado.
 
-“Geocoder é o componente Android que encontra as coordenadas. OSMDroid é a biblioteca que desenha o mapa. Não estou capturando GPS nem calculando rotas nesta entrega.”
+“Geocoder é o componente Android que encontra as coordenadas. OSMDroid desenha o mapa. Na entrega 6, o GPS fornece a origem e o OSRM calcula o trajeto entre os pedidos.”
 
 ## 4. Mapa e problema de bloqueio - 1 minuto
 
@@ -64,8 +64,20 @@ Abra `data/sync/FirestoreSync.kt`.
 
 “O manual dispensou nuvem somente para as fotos. Os pedidos continuam no Firestore. Antes existia o envio, mas faltava receber os pedidos de outro dispositivo. Agora o Firestore alimenta o Room, e a interface continua lendo o banco local. Cada novo pedido tem um UUID para não colidir com o número local de outro celular. A migração preserva os pedidos antigos. Alterações offline ainda pendentes não são substituídas por uma versão antiga recebida da nuvem.”
 
-## 6. Validação - 20 segundos
+## 6. Geração e execução da rota - 1 minuto
+
+Abra `ui/mapa/GeradorDeRota.kt` e `ui/screens/entregador/RotaEntregaScreen.kt`.
+
+- A localização atual e os endereços dos pedidos formam os pontos da rota.
+- A matriz de tempos do OSRM ordena as entregas; uma segunda consulta retorna a linha do trajeto.
+- A rota fica no Room para continuar disponível após fechar o aplicativo.
+- O entregador escolhe um veículo, inicia a rota e marca ou desmarca cada entrega.
+- Cancelar mantém pedidos entregues e devolve os demais para pendentes. Finalizar só é permitido com todos entregues.
+
+“O mapa continua usando OpenStreetMap e agora exibe a linha e os pontos numerados dentro do próprio aplicativo. O Google Maps não é aberto.”
+
+## 7. Validação - 20 segundos
 
 “Compilei a POC e o principal com Java 21. Testei a lógica de busca e sincronização, além de executar testes Android num emulador separado com Firebase local. Validei a preservação de pedidos antigos, troca de dados entre dois caches, reenvio offline, geocodificação e marcador. Também validei envio, recepção, status e reenvio no Firebase real com duas contas de teste.”
 
-Na demonstração, use endereço completo com cidade e estado. Mostre primeiro uma busca na POC e depois um pedido na área do entregador. Não prometa precisão absoluta do Geocoder nem funcionamento de mapas novos sem internet.
+Na demonstração, use endereços completos com cidade e estado, habilite a localização do dispositivo e mantenha internet disponível. Mostre seleção parcial e total, escolha de veículo, cancelamento e bloqueio da finalização antes de todas as entregas. Não prometa precisão absoluta do Geocoder nem disponibilidade contínua do endpoint público do OSRM.

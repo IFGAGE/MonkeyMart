@@ -7,11 +7,13 @@ import androidx.room3.RoomDatabase
 import com.example.marketplace.data.dao.AvaliacaoDao
 import com.example.marketplace.data.dao.PedidoDao
 import com.example.marketplace.data.dao.ProdutoDao
+import com.example.marketplace.data.dao.RotaDao
 import com.example.marketplace.data.dao.UsuarioDao
 import com.example.marketplace.data.dao.VeiculoDao
 import com.example.marketplace.data.entity.AvaliacaoEntity
 import com.example.marketplace.data.entity.PedidoEntity
 import com.example.marketplace.data.entity.ProdutoEntity
+import com.example.marketplace.data.entity.RotaEntity
 import com.example.marketplace.data.entity.UsuarioEntity
 import com.example.marketplace.data.entity.VeiculoEntity
 
@@ -21,9 +23,10 @@ import com.example.marketplace.data.entity.VeiculoEntity
         ProdutoEntity::class,
         VeiculoEntity::class,
         PedidoEntity::class,
-        AvaliacaoEntity::class
+        AvaliacaoEntity::class,
+        RotaEntity::class
     ],
-    version = 4,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun produtoDao(): ProdutoDao
     abstract fun veiculoDao(): VeiculoDao
     abstract fun pedidoDao(): PedidoDao
+    abstract fun rotaDao(): RotaDao
     abstract  fun avaliacaoDAO(): AvaliacaoDao
 
     companion object {
@@ -45,7 +49,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "marketplace_database"
                 )
-                    .addMigrations(MIGRATION_3_4)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
 
                 INSTANCE = instance

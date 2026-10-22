@@ -4,8 +4,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
-data class Coordenadas(val latitude: Double, val longitude: Double)
-
 sealed class EstadoBuscaEndereco {
     object Inicial : EstadoBuscaEndereco()
     object Carregando : EstadoBuscaEndereco()
@@ -23,11 +21,14 @@ suspend fun buscarEndereco(
     if (consulta.isBlank()) return EstadoBuscaEndereco.Erro("Informe um endereço.")
     return try {
         val ponto = withTimeout(timeoutMillis) { resolver(consulta) }
-        if (ponto == null) {
-            EstadoBuscaEndereco.Erro("Endereço não encontrado. Inclua número, cidade e estado.")
+        if (ponto == null || !ponto.latitude.isFinite() || !ponto.longitude.isFinite() ||
+            ponto.latitude !in -90.0..90.0 || ponto.longitude !in -180.0..180.0) {
+            EstadoBuscaEndereco.Erro("Endereço não encontrado. Tente ser mais específico: inclua número, cidade e estado.")
         } else {
             EstadoBuscaEndereco.Encontrado(consulta, ponto)
         }
+    } catch (e: EnderecoForaDoBrasilException) {
+        EstadoBuscaEndereco.Erro("Não encontramos esse endereço no Brasil. Informe rua, número, cidade e estado brasileiros.")
     } catch (e: TimeoutCancellationException) {
         EstadoBuscaEndereco.Erro("A busca demorou demais. Tente novamente.")
     } catch (e: CancellationException) {

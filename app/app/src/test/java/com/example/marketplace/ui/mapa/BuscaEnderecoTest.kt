@@ -7,6 +7,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BuscaEnderecoTest {
+    @Test fun paisForaDoBrasilMostraErroEspecifico() = runBlocking {
+        val resultado = buscarEndereco("Endereço estrangeiro", { throw EnderecoForaDoBrasilException() })
+        assertTrue((resultado as EstadoBuscaEndereco.Erro).mensagem.contains("Brasil"))
+    }
+    @Test fun coordenadasInvalidasNaoValidamEndereco() = runBlocking {
+        assertTrue(buscarEndereco("Rua A", { Coordenadas(Double.NaN, 0.0) }) is EstadoBuscaEndereco.Erro)
+        assertTrue(buscarEndereco("Rua A", { Coordenadas(91.0, 0.0) }) is EstadoBuscaEndereco.Erro)
+    }
     @Test fun enderecoVazioNaoConsultaServico() = runBlocking {
         val resultado = buscarEndereco("   ", { fail("Não deve consultar"); null })
         assertTrue(resultado is EstadoBuscaEndereco.Erro)

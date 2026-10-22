@@ -1,70 +1,98 @@
 package com.example.marketplace.ui.screens.entregador
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.marketplace.R
-import com.example.marketplace.ui.screens.profile.VeiculoTemp
-
-data class PedidoTemp(
-    val id: Int,
-    val emailCliente: String,
-    val enderecoEntrega: String,
-    val resumoItens: String,
-    val valorTotal: String,
-    val statusEntrega: String
-)
+import com.example.marketplace.data.entity.RotaEntity
+import com.example.marketplace.ui.mapa.LocalPedido
+import com.example.marketplace.ui.mapa.TipoParada
+import com.example.marketplace.ui.mapa.localNoMapa
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EntregadorHomeScreen(
     pedidos: List<PedidoTemp>,
-    veiculos: List<VeiculoTemp>,
+    rota: RotaEntity?,
+    podeCancelarRota: Boolean,
+    temVeiculo: Boolean,
+    gerandoRota: Boolean,
+    erroRota: String?,
     onAddVeiculoClick: () -> Unit,
     onProfileClick: () -> Unit,
-    onMarcarComoEntregue: (Int) -> Unit,
-    onVerMapaClick: (Int, String) -> Unit
+    onGerarRota: (List<PedidoTemp>) -> Unit,
+    onContinuarRota: () -> Unit,
+    onCancelarRota: (RotaEntity) -> Unit,
+    onPermissaoNegada: () -> Unit,
+    onVerMapaClick: (LocalPedido) -> Unit
 ) {
-    val isDarkTheme = isSystemInDarkTheme()
-    val logo = if (isDarkTheme) R.drawable.mm_branco else R.drawable.mm_preto
+    val context = LocalContext.current
+    var cancelar by remember { mutableStateOf<RotaEntity?>(null) }
+    cancelar?.let { selecionada ->
+        ConfirmarCancelamentoRota(gerandoRota, { cancelar = null }, {
+            cancelar = null
+            onCancelarRota(selecionada)
+        }, entregasIniciadas = selecionada.estado == "INICIADA")
+    }
+    var selecionados by remember { mutableStateOf(emptySet<Int>()) }
+    val pedidosSelecionados = pedidos.filter { it.id in selecionados }
+    val permissaoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissoes ->
+        if (permissoes.values.any { it } && temVeiculo) onGerarRota(pedidosSelecionados)
+        else onPermissaoNegada()
+    }
+
+    LaunchedEffect(pedidos) {
+        selecionados = selecionados.intersect(pedidos.map { it.id }.toSet())
+    }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Image(
-                        painter = painterResource(id = logo),
+                        painter = painterResource(
+                            if (isSystemInDarkTheme()) R.drawable.mm_branco else R.drawable.mm_preto
+                        ),
                         contentDescription = null,
                         modifier = Modifier.height(40.dp)
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onAddVeiculoClick) {
-                        Icon(imageVector = Icons.Default.LocalShipping, contentDescription = null)
+                        Icon(Icons.Default.LocalShipping, contentDescription = "Cadastrar veículo")
                     }
                 },
                 actions = {
                     IconButton(onClick = onProfileClick) {
-                        Icon(imageVector = Icons.Default.AccountCircle, contentDescription = null)
+                        Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -73,31 +101,119 @@ fun EntregadorHomeScreen(
             )
         }
     ) { paddingValues ->
-        Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
-            Text(
-                text = "Pedidos Disponíveis",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(16.dp)
-            )
+        Column(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
+            if (rota == null) Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Pedidos disponíveis", fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                if (pedidos.isNotEmpty()) Row(
+                    modifier = Modifier.toggleable(
+                        value = selecionados.size == pedidos.size,
+                        role = Role.Checkbox,
+                        onValueChange = { marcarTodos ->
+                            selecionados = if (marcarTodos) pedidos.map { it.id }.toSet() else emptySet()
+                        }
+                    ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(checked = selecionados.size == pedidos.size, onCheckedChange = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Selecionar todos", style = MaterialTheme.typography.labelSmall)
+                }
+            }
 
-            if (pedidos.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-                    Text("Nenhum pedido pendente no momento.", color = Color.Gray, fontSize = 16.sp)
+            if (!temVeiculo && rota == null) {
+                Text("Cadastre um veículo para gerar uma rota.", color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = onAddVeiculoClick) { Text("Cadastrar veículo") }
+            }
+
+            if (rota != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(when (rota.estado) {
+                            "INICIADA" -> "Entregas em andamento"
+                            "RESERVANDO" -> "O início das entregas está pendente"
+                            else -> "A rota já foi planejada"
+                        }, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(8.dp))
+                        Text(when (rota.estado) {
+                            "INICIADA" -> "Acompanhe as paradas e confirme cada coleta e entrega."
+                            "RESERVANDO" -> "Abra a rota para tentar iniciar novamente ou cancele o planejamento."
+                            else -> "Confira as paradas e inicie as entregas quando estiver pronto."
+                        }, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(12.dp))
+                        Button(onClick = onContinuarRota, enabled = !gerandoRota, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (rota.estado == "INICIADA") "Ver entregas" else "Ver rota planejada")
+                        }
+                        if (podeCancelarRota) TextButton(onClick = { cancelar = rota }, enabled = !gerandoRota,
+                            modifier = Modifier.fillMaxWidth()) { Text(if (rota.estado == "INICIADA") "Cancelar entregas" else "Cancelar rota") }
+                        else if (rota.estado == "INICIADA") Text("Após uma coleta, conclua as entregas para encerrar.",
+                            style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+                        erroRota?.let { Text(it, color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
+                    }
+                }
+            } else if (pedidos.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Nenhum pedido pendente no momento.", color = Color.Gray)
                 }
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(pedidos) { pedido ->
-                        PedidoItemCard(
+                    items(pedidos, key = { it.id }) { pedido ->
+                        PedidoSelecionavel(
                             pedido = pedido,
-                            veiculos = veiculos,
-                            onMarcarComoEntregue = onMarcarComoEntregue,
-                            onVerMapaClick = onVerMapaClick
+                            selecionado = pedido.id in selecionados,
+                            onSelecionar = { marcado ->
+                                selecionados = if (marcado) selecionados + pedido.id else selecionados - pedido.id
+                            },
+                            onVerColeta = { onVerMapaClick(pedido.localNoMapa(TipoParada.COLETA)) },
+                            onVerEntrega = { onVerMapaClick(pedido.localNoMapa(TipoParada.ENTREGA)) }
                         )
+                    }
+                }
+
+                erroRota?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp))
+                }
+                Button(
+                    onClick = {
+                        val temPermissao = listOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ).any { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+                        if (temPermissao) onGerarRota(pedidosSelecionados)
+                        else permissaoLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    },
+                    enabled = selecionados.isNotEmpty() && !gerandoRota && temVeiculo,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                ) {
+                    if (gerandoRota) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    } else {
+                        Icon(Icons.Default.Map, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Gerar rota")
                     }
                 }
             }
@@ -105,132 +221,40 @@ fun EntregadorHomeScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PedidoItemCard(
+private fun PedidoSelecionavel(
     pedido: PedidoTemp,
-    veiculos: List<VeiculoTemp>,
-    onMarcarComoEntregue: (Int) -> Unit,
-    onVerMapaClick: (Int, String) -> Unit
+    selecionado: Boolean,
+    onSelecionar: (Boolean) -> Unit,
+    onVerColeta: () -> Unit,
+    onVerEntrega: () -> Unit
 ) {
-    var showSheet by remember { mutableStateOf(false) }
-    var veiculoSelecionado by remember { mutableStateOf<VeiculoTemp?>(null) }
-
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { showSheet = true },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "Pedido #${pedido.id}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(text = "R$ ${pedido.valorTotal}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, fontSize = 18.sp)
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(imageVector = Icons.Default.Place, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = pedido.enderecoEntrega, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-
-    if (showSheet) {
-        ModalBottomSheet(
-            onDismissRequest = {
-                showSheet = false
-                veiculoSelecionado = null
-            },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
-            ) {
-                Text(text = "Detalhes do Pedido #${pedido.id}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(text = "Endereço de Entrega", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Gray)
-                Text(text = pedido.enderecoEntrega, fontSize = 18.sp)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = {
-                        onVerMapaClick(pedido.id, pedido.enderecoEntrega)
-                        showSheet = false
-                    },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                ) {
-                    Icon(imageVector = Icons.Default.Map, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Visualizar no Mapa", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = selecionado, onCheckedChange = onSelecionar)
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column {
+                    Text("Pedido #${pedido.id}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text("R$ ${pedido.valorTotal}", color = MaterialTheme.colorScheme.primary)
                 }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(text = "Resumo dos Itens", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Gray)
-                Text(text = pedido.resumoItens, fontSize = 18.sp)
-
-                Spacer(modifier = Modifier.height(24.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(text = "Selecione o veículo da entrega:", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (veiculos.isEmpty()) {
-                    Text(
-                        text = "Você precisa cadastrar um veículo antes de entregar.",
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
-                    )
-                } else {
-                    veiculos.forEach { veiculo ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { veiculoSelecionado = veiculo }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            RadioButton(
-                                selected = (veiculoSelecionado == veiculo),
-                                onClick = { veiculoSelecionado = veiculo }
-                            )
-                            Text(text = "${veiculo.modelo} (${veiculo.placa})")
-                        }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onVerColeta, modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)) {
+                        Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Coleta")
+                    }
+                    OutlinedButton(onClick = onVerEntrega, modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Entrega")
                     }
                 }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
-                    onClick = {
-                        onMarcarComoEntregue(pedido.id)
-                        showSheet = false
-                    },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = veiculoSelecionado != null
-                ) {
-                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Marcar como Entregue", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Spacer(modifier = Modifier.height(48.dp))
             }
         }
     }

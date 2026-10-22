@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -32,36 +33,43 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.marketplace.ui.theme.ColoredLinks
 
 import com.example.marketplace.ui.mapa.*
+import com.example.marketplace.data.entity.EnderecoValidado
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapaEntregaScreen(
     pedidoId: Int,
     endereco: String,
-    onVoltar: () -> Unit
+    onVoltar: () -> Unit,
+    tipo: TipoParada = TipoParada.ENTREGA,
+    coordenadas: Coordenadas? = null
 ) {
     val context = LocalContext.current.applicationContext
-    var estado by remember(endereco) { mutableStateOf<EstadoBuscaEndereco>(EstadoBuscaEndereco.Carregando) }
+    val ponto = coordenadas?.takeIf { EnderecoValidado(endereco, it.latitude, it.longitude).valido() }
+    var estado by remember(endereco, ponto) { mutableStateOf<EstadoBuscaEndereco>(
+        ponto?.let { EstadoBuscaEndereco.Encontrado(endereco, it) } ?: EstadoBuscaEndereco.Carregando) }
     var tentativa by remember(endereco) { mutableStateOf(0) }
 
-    LaunchedEffect(endereco, tentativa) {
-        estado = EstadoBuscaEndereco.Carregando
-        estado = buscarEndereco(endereco, { localizarEndereco(context, it) })
+    LaunchedEffect(endereco, ponto, tentativa) {
+        if (ponto != null) estado = EstadoBuscaEndereco.Encontrado(endereco, ponto)
+        else {
+            estado = EstadoBuscaEndereco.Carregando
+            estado = buscarEndereco(endereco, { localizarEndereco(context, it) })
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Local de Entrega #$pedidoId") },
+                title = { Text("${if (tipo == TipoParada.COLETA) "Coleta" else "Entrega"} do pedido #$pedidoId") },
                 navigationIcon = {
                     IconButton(onClick = onVoltar) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
+                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Voltar")
                     }
                 }
             )
@@ -77,7 +85,7 @@ fun MapaEntregaScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -86,7 +94,7 @@ fun MapaEntregaScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.LocationOn,
+                        imageVector = if (tipo == TipoParada.COLETA) Icons.Default.Storefront else Icons.Default.LocationOn,
                         contentDescription = null,
                         tint = ColoredLinks
                     )
@@ -94,7 +102,7 @@ fun MapaEntregaScreen(
                     Text(
                         text = endereco,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Color(0xFF333333)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -108,7 +116,7 @@ fun MapaEntregaScreen(
                 when (val atual = estado) {
                     is EstadoBuscaEndereco.Encontrado -> MapaDestino(atual, Modifier.fillMaxSize())
                     is EstadoBuscaEndereco.Erro -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(atual.mensagem, modifier = Modifier.padding(16.dp), color = Color.Gray)
+                        Text(atual.mensagem, modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
                         Button(onClick = { tentativa++ }) { Text("Tentar novamente") }
                     }
                     else -> CircularProgressIndicator(color = ColoredLinks)

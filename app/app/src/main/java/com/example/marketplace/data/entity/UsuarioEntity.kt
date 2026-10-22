@@ -1,6 +1,7 @@
 package com.example.marketplace.data.entity
 
 import androidx.room3.Entity
+import androidx.room3.Embedded
 import androidx.room3.PrimaryKey
 
 @Entity(tableName = "tabela_usuario")
@@ -11,5 +12,6 @@ data class UsuarioEntity(
     val cpf: String,
     val dataNascimento: String,
     val tipoPerfil: String,
-    val isSynced: Boolean = false
+    val isSynced: Boolean = false,
+    @Embedded(prefix = "coleta_") val enderecoColeta: EnderecoColeta? = null
 )
