@@ -40,3 +40,32 @@ suspend fun localizarEndereco(context: Context, endereco: String): Coordenadas? 
                 if (it.hasLongitude()) it.longitude else Double.NaN), it.countryCode)
     })
 }
+
+// Geocodificação reversa: devolve o endereço brasileiro mais próximo do ponto.
+suspend fun enderecoDoPonto(context: Context, ponto: Coordenadas): String? {
+    if (!Geocoder.isPresent()) throw IOException("Geocoder indisponível neste dispositivo")
+    val geocoder = Geocoder(context.applicationContext, Locale("pt", "BR"))
+    val resultados = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        suspendCancellableCoroutine<List<Address>> { continuation ->
+            geocoder.getFromLocation(ponto.latitude, ponto.longitude, 5, object : Geocoder.GeocodeListener {
+                override fun onGeocode(addresses: MutableList<Address>) {
+                    if (continuation.isActive) continuation.resume(addresses)
+                }
+                override fun onError(errorMessage: String?) {
+                    if (continuation.isActive) {
+                        continuation.resumeWithException(IOException(errorMessage ?: "Falha no Geocoder"))
+                    }
+                }
+            })
+        }
+    } else {
+        withContext(Dispatchers.IO) {
+            @Suppress("DEPRECATION")
+            geocoder.getFromLocation(ponto.latitude, ponto.longitude, 5).orEmpty()
+        }
+    }
+    return selecionarEnderecoReversoBrasileiro(resultados.map {
+        PartesEndereco(it.thoroughfare, it.subThoroughfare, it.subLocality, it.locality ?: it.subAdminArea,
+            it.adminArea, it.postalCode, it.countryCode, it.getAddressLine(0))
+    })
+}

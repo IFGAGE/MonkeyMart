@@ -5,8 +5,7 @@ data class ResultadoGeocodificacao(val coordenadas: Coordenadas, val codigoPais:
 class EnderecoForaDoBrasilException : IllegalArgumentException()
 
 fun selecionarEnderecoBrasileiro(resultados: List<ResultadoGeocodificacao>): Coordenadas? {
-    // Uma caixa geográfica também contém países vizinhos; o país do resultado
-    // é obrigatório para confirmar o endereço, independentemente do idioma.
+    
     val brasileiros = resultados.filter { it.codigoPais?.trim().equals("BR", ignoreCase = true) }
     if (resultados.isNotEmpty() && brasileiros.isEmpty()) throw EnderecoForaDoBrasilException()
     return brasileiros.firstOrNull {
@@ -14,3 +13,33 @@ fun selecionarEnderecoBrasileiro(resultados: List<ResultadoGeocodificacao>): Coo
             it.coordenadas.latitude in -90.0..90.0 && it.coordenadas.longitude in -180.0..180.0
     }?.coordenadas
 }
+
+data class PartesEndereco(
+    val rua: String? = null,
+    val numero: String? = null,
+    val bairro: String? = null,
+    val cidade: String? = null,
+    val estado: String? = null,
+    val cep: String? = null,
+    val codigoPais: String? = null,
+    val linhaCompleta: String? = null
+)
+
+fun formatarEndereco(partes: PartesEndereco): String? {
+    val rua = partes.rua.limpo() ?: return partes.linhaCompleta.limpo()
+    val logradouro = listOfNotNull(rua, partes.numero.limpo()).joinToString(", ")
+    val local = listOfNotNull(partes.cidade.limpo(), partes.estado.limpo()).joinToString(" - ")
+    return listOfNotNull(
+        listOfNotNull(logradouro, partes.bairro.limpo()).joinToString(" - "),
+        local.ifBlank { null },
+        partes.cep.limpo()
+    ).joinToString(", ")
+}
+
+fun selecionarEnderecoReversoBrasileiro(resultados: List<PartesEndereco>): String? {
+    val brasileiros = resultados.filter { it.codigoPais?.trim().equals("BR", ignoreCase = true) }
+    if (resultados.isNotEmpty() && brasileiros.isEmpty()) throw EnderecoForaDoBrasilException()
+    return brasileiros.firstNotNullOfOrNull { formatarEndereco(it) }
+}
+
+private fun String?.limpo() = this?.trim()?.takeIf { it.isNotEmpty() }

@@ -8,7 +8,9 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
@@ -18,11 +20,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.preference.PreferenceManager
 import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.CopyrightOverlay
+import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import androidx.core.content.ContextCompat
@@ -32,9 +36,21 @@ import android.os.SystemClock
 import android.util.Log
 
 @Composable
-fun MapaDestino(resultado: EstadoBuscaEndereco.Encontrado, modifier: Modifier = Modifier) {
+fun MapaDestino(resultado: EstadoBuscaEndereco.Encontrado, modifier: Modifier = Modifier,
+    onToque: ((Coordenadas) -> Unit)? = null) {
     val context = LocalContext.current
     val map = lembrarMapa()
+    val tocar by rememberUpdatedState(onToque)
+    remember(map) {
+        map.overlays.add(MapEventsOverlay(object : MapEventsReceiver {
+            override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
+                val acao = tocar ?: return false
+                acao(Coordenadas(p.latitude, p.longitude))
+                return true
+            }
+            override fun longPressHelper(p: GeoPoint) = false
+        }))
+    }
     val marker = remember(map) {
         Marker(map).apply {
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
