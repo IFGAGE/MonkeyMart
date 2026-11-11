@@ -21,7 +21,8 @@ fun pedidoRemoto(documentId: String, dados: Map<String, Any?>): PedidoEntity? {
         entregaLongitude = (dados["entregaLongitude"] as? Number)?.toDouble(),
         emailEntregador = dados["emailEntregador"] as? String ?: "",
         revisao = (dados["revisao"] as? Number)?.toInt() ?: 0,
-        coletado = dados["coletado"] as? Boolean ?: (dados["statusEntrega"] == "ENTREGUE")
+        coletado = dados["coletado"] as? Boolean ?: (dados["statusEntrega"] == "ENTREGUE"),
+        avisoProximidade = dados["avisoProximidade"] as? Boolean ?: false
     )
 }
 
@@ -41,7 +42,9 @@ fun dadosPedido(pedido: PedidoEntity): Map<String, Any?> = mapOf(
     "emailEntregador" to pedido.emailEntregador,
     "revisao" to pedido.revisao,
     "coletado" to pedido.coletado
-)
+).let { campos ->
+    if (pedido.avisoProximidade) campos + ("avisoProximidade" to true) else campos
+}
 
 fun mesclarPedido(local: PedidoEntity?, remoto: PedidoEntity): PedidoEntity = when {
     local == null -> remoto.copy(id = 0, isSynced = true)

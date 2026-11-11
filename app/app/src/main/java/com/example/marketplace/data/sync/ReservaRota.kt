@@ -5,6 +5,7 @@ import com.example.marketplace.data.entity.RotaEntity
 import com.example.marketplace.ui.mapa.pedidoIds
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
@@ -50,7 +51,7 @@ suspend fun iniciarRotaComReserva(db: AppDatabase, email: String, placa: String,
             remotos.mapIndexed { index, pedido ->
                 val reservado = if (pedido.statusEntrega == "EM_ROTA") pedido else pedido.copy(
                     statusEntrega = "EM_ROTA", emailEntregador = email, revisao = pedido.revisao + 1)
-                transaction.set(refs[index], dadosPedido(reservado))
+                transaction.set(refs[index], dadosPedido(reservado), SetOptions.merge())
                 reservado
             }
         }.await()
@@ -95,7 +96,7 @@ private suspend fun excluirPlanejadaOuReserva(db: AppDatabase, email: String, id
                     // Atualizar a versão também invalida tentativas antigas de reserva.
                     val liberado = pedido.copy(statusEntrega = "PRONTO_RETIRADA", emailEntregador = "",
                         revisao = pedido.revisao + 1)
-                    transaction.set(refs[index], dadosPedido(liberado))
+                    transaction.set(refs[index], dadosPedido(liberado), SetOptions.merge())
                     liberado
                 } else pedido
             }
