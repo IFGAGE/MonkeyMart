@@ -226,3 +226,56 @@ private fun GerenciarCicloDeVida(map: MapView) {
         }
     }
 }
+
+// O mapa é criado uma vez; as novas posições movem somente o marcador do entregador.
+@Composable
+internal fun MapaAcompanhamento(
+    entregador: Coordenadas,
+    destino: Coordenadas,
+    trajeto: List<Coordenadas>,
+    modifier: Modifier = Modifier
+) {
+    val map = lembrarMapa()
+    val marcadorEntregador = remember(map) {
+        Marker(map).apply { title = "Entregador"; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM); map.overlays.add(this) }
+    }
+    val marcadorDestino = remember(map) {
+        Marker(map).apply {
+            title = "Sua entrega"
+            icon = ContextCompat.getDrawable(map.context, R.drawable.ic_pin_monkey)
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            map.overlays.add(this)
+        }
+    }
+    val linha = remember(map) {
+        Polyline().apply {
+            outlinePaint.color = android.graphics.Color.rgb(33, 150, 243)
+            outlinePaint.strokeWidth = 10f
+            map.overlays.add(0, this)
+        }
+    }
+    val area = remember(map) {
+        org.osmdroid.views.overlay.Polygon(map).apply {
+            fillPaint.color = android.graphics.Color.argb(30, 40, 170, 80)
+            outlinePaint.color = android.graphics.Color.rgb(40, 170, 80)
+            outlinePaint.strokeWidth = 3f
+            map.overlays.add(0, this)
+        }
+    }
+    val enquadrado = remember(map, destino) { booleanArrayOf(false) }
+    GerenciarCicloDeVida(map)
+    AndroidView(factory = { map }, modifier = modifier.clipToBounds(), update = { view ->
+        marcadorEntregador.position = GeoPoint(entregador.latitude, entregador.longitude)
+        marcadorDestino.position = GeoPoint(destino.latitude, destino.longitude)
+        linha.setPoints(trajeto.map { GeoPoint(it.latitude, it.longitude) })
+        area.points = org.osmdroid.views.overlay.Polygon.pointsAsCircle(marcadorDestino.position, 200.0)
+        if (!enquadrado[0]) {
+            enquadrado[0] = true
+            view.doOnLayout {
+                val pontos = listOf(marcadorEntregador.position, marcadorDestino.position) + area.points
+                view.zoomToBoundingBox(BoundingBox.fromGeoPoints(pontos), false, 80)
+            }
+        }
+        view.invalidate()
+    })
+}

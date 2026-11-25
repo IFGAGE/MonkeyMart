@@ -207,3 +207,11 @@ private fun validarCoordenadas(coordenadas: Coordenadas) {
             coordenadas.longitude.isFinite() && coordenadas.longitude in -180.0..180.0
     ) { "Coordenadas inválidas." }
 }
+
+// Trajeto apenas entre o entregador e este comprador, sem expor as outras paradas da rota.
+internal suspend fun consultarTrajetoDaEntrega(origem: Coordenadas, destino: Coordenadas): List<Coordenadas> {
+    val resposta = consultarOsrm("route", listOf(origem, destino), "geometries=geojson&overview=full&steps=false")
+    val rotas = resposta.getJSONArray("routes")
+    if (rotas.length() == 0) throw IOException("Trajeto indisponível.")
+    return rotas.getJSONObject(0).getJSONObject("geometry").getJSONArray("coordinates").toCoordenadas()
+}

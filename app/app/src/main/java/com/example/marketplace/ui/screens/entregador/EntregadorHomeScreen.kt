@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
+import com.example.marketplace.ui.notificacoes.SinoNotificacoes
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ import com.example.marketplace.data.entity.RotaEntity
 import com.example.marketplace.ui.mapa.LocalPedido
 import com.example.marketplace.ui.mapa.TipoParada
 import com.example.marketplace.ui.mapa.localNoMapa
+import com.example.marketplace.ui.mapa.pedidoIds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +48,8 @@ fun EntregadorHomeScreen(
     erroRota: String?,
     onAddVeiculoClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onNotificacoesClick: () -> Unit,
+    notificacoesNaoLidas: Int,
     onGerarRota: (List<PedidoTemp>) -> Unit,
     onContinuarRota: () -> Unit,
     onCancelarRota: (RotaEntity) -> Unit,
@@ -62,6 +66,10 @@ fun EntregadorHomeScreen(
     }
     var selecionados by remember { mutableStateOf(emptySet<Int>()) }
     val pedidosSelecionados = pedidos.filter { it.id in selecionados }
+    val idsDaRota = remember(rota?.pedidosJson) {
+        runCatching { rota?.pedidoIds()?.toSet().orEmpty() }.getOrDefault(emptySet())
+    }
+    val outrosPedidos = pedidos.filterNot { it.id in idsDaRota }
     val permissaoLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissoes ->
@@ -91,6 +99,7 @@ fun EntregadorHomeScreen(
                     }
                 },
                 actions = {
+                    SinoNotificacoes(notificacoesNaoLidas, onNotificacoesClick)
                     IconButton(onClick = onProfileClick) {
                         Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
                     }
@@ -144,9 +153,10 @@ fun EntregadorHomeScreen(
                         Text(when (rota.estado) {
                             "INICIADA" -> "Entregas em andamento"
                             "RESERVANDO" -> "O início das entregas está pendente"
-                            else -> "A rota já foi planejada"
+                            else -> "Rota pronta para iniciar"
                         }, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                         Spacer(Modifier.height(8.dp))
+                        Text("${idsDaRota.size} pedido(s) nesta rota. Veja a lista em ${if (rota.estado == "INICIADA") "Ver entregas" else "Ver rota planejada"}.")
                         Text(when (rota.estado) {
                             "INICIADA" -> "Acompanhe as paradas e confirme cada coleta e entrega."
                             "RESERVANDO" -> "Abra a rota para tentar iniciar novamente ou cancele o planejamento."
@@ -163,6 +173,24 @@ fun EntregadorHomeScreen(
                             modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
                         erroRota?.let { Text(it, color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
+                    }
+                }
+            }
+            if (rota != null) {
+                Text("Outros pedidos disponíveis (${outrosPedidos.size})", fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+                Text(if (rota.estado == "INICIADA") "Conclua a rota atual antes de assumir outros pedidos."
+                    else "Para escolher outros pedidos, cancele o planejamento atual.",
+                    style = MaterialTheme.typography.bodySmall)
+                if (outrosPedidos.isEmpty()) Text("Nenhum outro pedido disponível no momento.",
+                    modifier = Modifier.padding(vertical = 12.dp), color = Color.Gray)
+                else LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(outrosPedidos, key = { it.id }) { pedido ->
+                        PedidoSelecionavel(pedido, false, {},
+                            onVerColeta = { onVerMapaClick(pedido.localNoMapa(TipoParada.COLETA)) },
+                            onVerEntrega = { onVerMapaClick(pedido.localNoMapa(TipoParada.ENTREGA)) },
+                            selecionavel = false)
                     }
                 }
             } else if (pedidos.isEmpty()) {
@@ -227,15 +255,18 @@ private fun PedidoSelecionavel(
     selecionado: Boolean,
     onSelecionar: (Boolean) -> Unit,
     onVerColeta: () -> Unit,
-    onVerEntrega: () -> Unit
+    onVerEntrega: () -> Unit,
+    selecionavel: Boolean = true
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = selecionado, onCheckedChange = onSelecionar)
-            Spacer(Modifier.width(8.dp))
+            if (selecionavel) {
+                Checkbox(checked = selecionado, onCheckedChange = onSelecionar)
+                Spacer(Modifier.width(8.dp))
+            }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column {
                     Text("Pedido #${pedido.id}", fontWeight = FontWeight.Bold, fontSize = 18.sp)

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Image as ImageIcon
 import androidx.compose.material3.*
+import com.example.marketplace.ui.notificacoes.SinoNotificacoes
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +66,8 @@ fun NegocianteHomeScreen(
     quantidadeCarrinho: Int,
     onAddProdutoClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onNotificacoesClick: () -> Unit,
+    notificacoesNaoLidas: Int,
     onCartClick: () -> Unit,
     onAddToCart: (ProdutoTemp) -> Unit,
     onEnviarAvaliacao: (nomeProduto: String, nota: Int, comentario: String) -> Unit
@@ -91,6 +94,7 @@ fun NegocianteHomeScreen(
                     }
                 },
                 actions = {
+                    SinoNotificacoes(notificacoesNaoLidas, onNotificacoesClick)
                     IconButton(onClick = onProfileClick) {
                         Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
                     }
