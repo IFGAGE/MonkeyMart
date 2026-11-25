@@ -64,7 +64,7 @@ class NegociantePersistenceTest {
             antigo.version = 3
         }
         val db = Room.databaseBuilder(context, AppDatabase::class.java, nome)
-            .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build()
+            .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).build()
         try {
             val usuario = db.usuarioDao().buscarUsuario("ana@teste.com")!!
             assertEquals("Ana", usuario.nome)

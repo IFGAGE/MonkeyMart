@@ -15,6 +15,13 @@ class PedidoRemotoTest {
             entregaLongitude = -49.4, emailEntregador = "motorista", revisao = 2, coletado = true)
         assertEquals(original, pedidoRemoto(original.firestoreId, dadosPedido(original)))
     }
+    @Test fun avisoProximidadeVaiParaNuvemEParteDesligadoEmPedidoLegado() {
+        val original = pedido(status = "EM_ROTA").copy(avisoProximidade = true)
+        val dados = dadosPedido(original).toMutableMap()
+        assertEquals(original, pedidoRemoto(original.firestoreId, dados))
+        dados.remove("avisoProximidade")
+        assertFalse(pedidoRemoto(original.firestoreId, dados)!!.avisoProximidade)
+    }
     @Test fun pedidoLegadoEntregueJaTemColetaConcluida() {
         val dados = dadosPedido(pedido(status = "ENTREGUE")).toMutableMap()
         dados.remove("coletado")
@@ -68,6 +75,7 @@ class PedidoRemotoTest {
         val dados = dadosPedido(pedido())
         assertFalse(dados.containsKey("id"))
         assertFalse(dados.containsKey("isSynced"))
+        assertFalse(dados.containsKey("avisoProximidade"))
         assertEquals("Rua A, 10", dados["enderecoEntrega"])
     }
 }

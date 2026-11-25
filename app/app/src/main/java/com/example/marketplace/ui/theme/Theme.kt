@@ -12,6 +12,8 @@ import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
     primary = ColoredLinks,
+    primaryContainer = DarkBrandContainer,
+    onPrimaryContainer = LightBrandContainer,
     secondary = DarkText,
     background = DarkBackground,
     surface = DarkSurface
@@ -19,6 +21,8 @@ private val DarkColorScheme = darkColorScheme(
 
 private val LightColorScheme = lightColorScheme(
     primary = ColoredLinks,
+    primaryContainer = LightBrandContainer,
+    onPrimaryContainer = DarkText,
     secondary = DarkText,
     background = GrayBackground,
     surface = WhiteCard

@@ -13,6 +13,8 @@ import com.example.marketplace.data.ItemCompra
 import com.example.marketplace.data.criarPedidos
 import kotlinx.coroutines.flow.Flow
 
+data class AvisoDeProximidade(val firestoreId: String, val statusEntrega: String, val pedidoId: Int)
+
 @Dao
 interface PedidoDao {
     
@@ -79,6 +81,54 @@ interface PedidoDao {
             check(atualizarEntrega(it.id, email, status) == 1) { "Não foi possível atualizar a entrega." }
         }
     }
+
+    @Query("""
+        SELECT * FROM tabela_pedido WHERE emailEntregador = :email AND statusEntrega = 'EM_ROTA'
+        AND avisoProximidade = 0
+        AND entregaLatitude IS NOT NULL AND entregaLongitude IS NOT NULL ORDER BY id
+    """)
+    fun observarDestinosMonitoraveis(email: String): Flow<List<PedidoEntity>>
+
+    @Query("""
+        UPDATE tabela_pedido SET avisoProximidade = 1, revisao = revisao + 1, isSynced = 0
+        WHERE id IN (:ids) AND emailEntregador = :email AND statusEntrega = 'EM_ROTA'
+        AND avisoProximidade = 0
+        AND EXISTS (SELECT 1 FROM tabela_rota WHERE emailEntregador = :email AND estado = 'INICIADA')
+    """)
+    suspend fun registrarProximidade(ids: List<Int>, email: String): Int
+
+    @Query("SELECT * FROM tabela_pedido WHERE emailEntregador = :email AND statusEntrega = 'EM_ROTA' ORDER BY id")
+    fun observarEntregasEmAndamento(email: String): Flow<List<PedidoEntity>>
+
+    @Transaction
+    suspend fun carregarEntregasDaRota(email: String): List<PedidoEntity> {
+        val json = pedidosDaRotaIniciada(email) ?: return emptyList()
+        val lista = org.json.JSONArray(json)
+        val ids = (0 until lista.length()).map { lista.getInt(it) }
+        return carregarPedidos(ids).filter { it.emailEntregador == email && it.statusEntrega == "EM_ROTA" }
+    }
+
+    @Query("SELECT pedidosJson FROM tabela_rota WHERE emailEntregador = :email AND estado = 'INICIADA' LIMIT 1")
+    suspend fun pedidosDaRotaIniciada(email: String): String?
+
+    // O receptor confere a rota e as coordenadas dentro da mesma transação que salva o aviso.
+    @Transaction
+    suspend fun registrarEntradaGeofence(email: String, pontos: Map<Int, String>): List<Int> {
+        val json = pedidosDaRotaIniciada(email) ?: return emptyList()
+        val lista = org.json.JSONArray(json)
+        val idsDaRota = (0 until lista.length()).map { lista.getInt(it) }.toSet()
+        val pedidos = carregarPedidos(pontos.keys.filter { it in idsDaRota })
+        val ids = pedidos.filter {
+            pontos[it.id] == "${it.entregaLatitude},${it.entregaLongitude}"
+        }.map { it.id }
+        return ids.filter { registrarProximidade(listOf(it), email) == 1 }
+    }
+
+    @Query("""
+        SELECT firestoreId, statusEntrega, id AS pedidoId FROM tabela_pedido WHERE emailCliente = :email AND avisoProximidade = 1
+        AND statusEntrega IN ('EM_ROTA', 'ENTREGUE') ORDER BY id DESC
+    """)
+    fun observarAvisosDeProximidade(email: String): Flow<List<AvisoDeProximidade>>
 
     @Query("SELECT * FROM tabela_pedido WHERE emailCliente = :email ORDER BY id DESC")
     fun buscarPedidosDoCliente(email: String): Flow<List<PedidoEntity>>

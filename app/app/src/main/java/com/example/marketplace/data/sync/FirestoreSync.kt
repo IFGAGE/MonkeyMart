@@ -9,6 +9,7 @@ import com.example.marketplace.data.dao.UsuarioDao
 import com.example.marketplace.data.dao.VeiculoDao
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
@@ -84,7 +85,7 @@ suspend fun sincronizarPedidos(pedidoDao: PedidoDao) = pedidoSyncMutex.withLock 
             val snapshot = transaction.get(ref)
             val remoto = snapshot.data?.let { pedidoRemoto(snapshot.id, it) }
             if (remoto == null || remoto.revisao < pedido.revisao) {
-                transaction.set(ref, dadosPedido(pedido))
+                transaction.set(ref, dadosPedido(pedido), SetOptions.merge())
                 pedido.copy(isSynced = true)
             } else remoto
         }.await()

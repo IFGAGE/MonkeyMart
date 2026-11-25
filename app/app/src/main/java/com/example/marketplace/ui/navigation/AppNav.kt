@@ -2,6 +2,16 @@ package com.example.marketplace.ui.navigation
 
 import android.net.Uri
 import android.util.Log
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import com.example.marketplace.data.notificacoes.HistoricoNotificacoes
+import com.example.marketplace.data.notificacoes.Notificacao
+import com.example.marketplace.ui.notificacoes.NotificacoesScreen
+import kotlinx.coroutines.flow.flowOf
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -16,16 +26,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.marketplace.ui.proximidade.NotificarComprador
+import com.example.marketplace.ui.proximidade.ProximidadeEntrega
+import com.example.marketplace.ui.acompanhamento.AcompanharEntregaScreen
 import com.example.marketplace.ui.mapa.Coordenadas
 import com.example.marketplace.ui.mapa.TipoParada
 import com.google.firebase.auth.FirebaseAuth
@@ -40,6 +55,7 @@ import com.example.marketplace.data.entity.PedidoEntity
 import com.example.marketplace.data.entity.ProdutoEntity
 import com.example.marketplace.data.entity.UsuarioEntity
 import com.example.marketplace.data.entity.VeiculoEntity
+import com.example.marketplace.data.sync.buscarOuRestaurarPerfil
 import com.example.marketplace.data.sync.acompanharPedidos
 import com.example.marketplace.data.sync.acompanharProdutos
 import com.example.marketplace.data.sync.iniciarRotaComReserva
@@ -81,7 +97,6 @@ fun AppNavigation(
     val auth = FirebaseAuth.getInstance()
     val context = LocalContext.current
     val db = remember { AppDatabase.getDatabase(context) }
-    val coroutineScope = rememberCoroutineScope()
     var usuarioId by remember { mutableStateOf(auth.currentUser?.uid) }
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { usuarioId = it.currentUser?.uid }
@@ -96,16 +111,86 @@ fun AppNavigation(
     }
 
     val startDestination = if (auth.currentUser != null) "check_profile" else "login"
+    val conta = usuarioId
+    val email = auth.currentUser?.email
+    if (conta != null && !email.isNullOrBlank() && viewModel.usuarioLogado?.tipoPerfil == "negociante") {
+        NotificarComprador(db.pedidoDao(), conta, email)
+    }
 
+    Box(Modifier.fillMaxSize()) {
+        NavegacaoPrincipal(navController, startDestination, viewModel, usuarioId)
+        ProximidadeEntrega(
+            db = db,
+            usuarioId = usuarioId,
+            email = auth.currentUser?.email,
+            abrirCompras = { navController.navigate("meus_pedidos") { launchSingleTop = true } },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
+}
+
+@Composable
+private fun NavegacaoPrincipal(
+    navController: NavHostController,
+    startDestination: String,
+    viewModel: AppViewModel,
+    usuarioId: String?
+) {
+    val auth = FirebaseAuth.getInstance()
+    val context = LocalContext.current
+    val db = remember { AppDatabase.getDatabase(context) }
+    val coroutineScope = rememberCoroutineScope()
     val carrinhoItens = viewModel.carrinhoItens
 
-    NavHost(navController = navController, startDestination = startDestination) {
+    val notificacoes by key(usuarioId) {
+        remember(usuarioId, context) {
+            if (usuarioId == null) flowOf(emptyList<Notificacao>())
+            else HistoricoNotificacoes.observar(context, usuarioId)
+        }.collectAsState(initial = emptyList())
+    }
+    val historicoAtual by rememberUpdatedState(notificacoes)
+    val contaDoHistorico by rememberUpdatedState(usuarioId)
+    val abrirNotificacoes = remember(navController) {
+        { navController.navigate("notificacoes") { launchSingleTop = true } }
+    }
+
+    NavHost(
+        navController = navController,
+        startDestination = startDestination,
+        enterTransition = { slideInHorizontally(tween(180)) { it } },
+        exitTransition = { slideOutHorizontally(tween(180)) { -it / 3 } },
+        popEnterTransition = { slideInHorizontally(tween(180)) { -it / 3 } },
+        popExitTransition = { slideOutHorizontally(tween(180)) { it } }
+    ) {
+        composable("notificacoes") {
+            val conta = contaDoHistorico
+            val historico = historicoAtual
+            key(conta) {
+                NotificacoesScreen(
+                    historico,
+                    onVoltar = { navController.popBackStack() },
+                    onLer = { id -> conta?.let { HistoricoNotificacoes.marcarComoLida(context, it, id) } },
+                    onLimpar = { conta?.let { HistoricoNotificacoes.limpar(context, it) } }
+                )
+            }
+        }
+
 
         composable("check_profile") {
-            LaunchedEffect(Unit) {
+            var tentativa by remember { mutableStateOf(0) }
+            var falhou by remember { mutableStateOf(false) }
+            LaunchedEffect(tentativa) {
                 val email = auth.currentUser?.email
                 if (email != null) {
-                    val userInDb = db.usuarioDao().buscarUsuario(email)
+                    val userInDb = try {
+                        db.usuarioDao().buscarOuRestaurarPerfil(email)
+                    } catch (cancelamento: kotlinx.coroutines.CancellationException) {
+                        throw cancelamento
+                    } catch (erro: Exception) {
+                        Log.e("Sync", "Falha ao carregar o perfil.", erro)
+                        falhou = true
+                        return@LaunchedEffect
+                    }
 
                     if (userInDb != null) {
                         viewModel.usuarioLogado = UsuarioTemp(
@@ -124,7 +209,20 @@ fun AppNavigation(
                     navController.navigate("login") { popUpTo("check_profile") { inclusive = true } }
                 }
             }
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (falhou) {
+                    androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        androidx.compose.material3.Text("Não foi possível carregar seu perfil.")
+                        androidx.compose.material3.TextButton(onClick = { falhou = false; tentativa++ }) {
+                            androidx.compose.material3.Text("Tentar novamente")
+                        }
+                        androidx.compose.material3.TextButton(onClick = {
+                            auth.signOut()
+                            navController.navigate("login") { popUpTo("check_profile") { inclusive = true } }
+                        }) { androidx.compose.material3.Text("Voltar ao login") }
+                    }
+                } else CircularProgressIndicator()
+            }
         }
 
         composable("login") {
@@ -205,6 +303,8 @@ fun AppNavigation(
                 quantidadeCarrinho = carrinhoItens.sumOf { it.quantidade },
                 onAddProdutoClick = { navController.navigate("painel_negociante") },
                 onProfileClick = { navController.navigate("perfil") },
+                onNotificacoesClick = abrirNotificacoes,
+                notificacoesNaoLidas = historicoAtual.count { !it.lida },
                 onCartClick = { navController.navigate("carrinho") },
                 onAddToCart = adicionar@{ produtoSelecionado ->
                     if (email.isBlank() || produtoSelecionado.emailDono == email) return@adicionar
@@ -426,6 +526,8 @@ fun AppNavigation(
                 erroRota = erroRota,
                 onAddVeiculoClick = { navController.navigate("cadastro_veiculo") },
                 onProfileClick = { navController.navigate("perfil") },
+                onNotificacoesClick = abrirNotificacoes,
+                notificacoesNaoLidas = historicoAtual.count { !it.lida },
                 onGerarRota = { selecionados ->
                     coroutineScope.launch {
                         gerandoRota = true
@@ -630,6 +732,7 @@ fun AppNavigation(
                                     }
                                 }
                             },
+                            onPreviaComprador = { id -> navController.navigate("acompanhar_entrega/$id?previa=true") },
                             onFinalizar = {
                                 coroutineScope.launch {
                                     processando = true
@@ -704,16 +807,41 @@ fun AppNavigation(
         }
 
         composable("perfil") {
+            var confirmarSaida by remember { mutableStateOf(false) }
+            fun sairDaConta() {
+                auth.signOut()
+                viewModel.usuarioLogado = null
+                carrinhoItens.clear()
+                navController.navigate("login") { popUpTo(0) }
+            }
+            if (confirmarSaida) AlertDialog(
+                onDismissRequest = { confirmarSaida = false },
+                title = { Text("Entrega em andamento") },
+                text = {
+                    val debug = context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+                    Text(if (debug) "Ao sair, o comprador deixa de receber a sua posição. Para testar neste celular, volte à rota e abra Ver prévia do comprador."
+                        else "Ao sair, o comprador deixa de receber a sua posição até você entrar novamente.")
+                },
+                confirmButton = { TextButton(onClick = {
+                    confirmarSaida = false
+                    navController.navigate("rota_entrega") { launchSingleTop = true }
+                }) { Text("Voltar à rota") } },
+                dismissButton = { TextButton(onClick = { confirmarSaida = false; sairDaConta() }) {
+                    Text("Sair e pausar")
+                } }
+            )
             com.example.marketplace.ui.screens.profile.ProfileMenuScreen(
                 tipoPerfil = viewModel.usuarioLogado?.tipoPerfil ?: "",
                 onMeusDadosClick = { navController.navigate("meus_dados") },
                 onMeusPedidosClick = { navController.navigate("meus_pedidos") },
                 onMeusVeiculosClick = { navController.navigate("meus_veiculos") },
                 onSignOutClick = {
-                    auth.signOut()
-                    viewModel.usuarioLogado = null
-                    carrinhoItens.clear()
-                    navController.navigate("login") { popUpTo(0) }
+                    coroutineScope.launch {
+                        val email = auth.currentUser?.email
+                        if (email != null && db.pedidoDao().carregarEntregasDaRota(email).isNotEmpty()) {
+                            confirmarSaida = true
+                        } else sairDaConta()
+                    }
                 },
                 onBackClick = { navController.popBackStack() }
             )
@@ -737,14 +865,36 @@ fun AppNavigation(
                     enderecoEntrega = it.enderecoEntrega,
                     resumoItens = it.resumoItens,
                     valorTotal = it.valorTotal,
-                    statusEntrega = it.statusEntrega
+                    statusEntrega = it.statusEntrega,
+                    avisoProximidade = it.avisoProximidade
                 )
             }
 
             com.example.marketplace.ui.screens.profile.MeusPedidosScreen(
                 pedidos = pedidosVisuais,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onAcompanhar = { id -> navController.navigate("acompanhar_entrega/$id") }
             )
+        }
+
+        composable("acompanhar_entrega/{pedidoId}?previa={previa}", arguments = listOf(
+            navArgument("previa") { defaultValue = "false" }
+        )) { entrada ->
+            val id = entrada.arguments?.getString("pedidoId")?.toIntOrNull() ?: -1
+            val email = auth.currentUser?.email.orEmpty()
+            val pedidos by remember(id) { db.pedidoDao().buscarPorIds(listOf(id)) }.collectAsState(initial = emptyList())
+            val pedido = pedidos.firstOrNull()
+            val previaPedida = entrada.arguments?.getString("previa") == "true"
+            val debug = context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+            val podeVer = pedido != null && if (previaPedida) debug && pedido.emailEntregador == email
+                else pedido.emailCliente == email
+            if (pedido != null && podeVer) {
+                AcompanharEntregaScreen(pedido, previaPedida, onVoltar = { navController.popBackStack() })
+            } else {
+                androidx.compose.material3.TextButton(onClick = { navController.popBackStack() }) {
+                    androidx.compose.material3.Text("Pedido indisponível. Voltar")
+                }
+            }
         }
 
         composable("meus_veiculos") {

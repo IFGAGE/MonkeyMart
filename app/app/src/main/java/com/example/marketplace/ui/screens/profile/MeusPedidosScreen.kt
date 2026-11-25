@@ -23,14 +23,16 @@ data class PedidoCliente(
     val enderecoEntrega: String,
     val resumoItens: String,
     val valorTotal: String,
-    val statusEntrega: String
+    val statusEntrega: String,
+    val avisoProximidade: Boolean = false
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MeusPedidosScreen(
     pedidos: List<PedidoCliente>,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onAcompanhar: (Int) -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -52,8 +54,8 @@ fun MeusPedidosScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.padding(paddingValues).fillMaxSize()
             ) {
-                items(pedidos) { pedido ->
-                    PedidoClienteCard(pedido)
+                items(pedidos, key = { it.id }) { pedido ->
+                    PedidoClienteCard(pedido, onAcompanhar)
                 }
             }
         }
@@ -62,7 +64,7 @@ fun MeusPedidosScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PedidoClienteCard(pedido: PedidoCliente) {
+fun PedidoClienteCard(pedido: PedidoCliente, onAcompanhar: (Int) -> Unit = {}) {
     var showSheet by remember { mutableStateOf(false) }
 
     Card(
@@ -91,6 +93,15 @@ fun PedidoClienteCard(pedido: PedidoCliente) {
                 color = if (pedido.statusEntrega == "ENTREGUE") Color(0xFF4CAF50) else Color(0xFFFFA000)
             )
             
+            if (pedido.avisoProximidade && pedido.statusEntrega == "EM_ROTA") {
+                Text("Seu entregador está perto do endereço de entrega.",
+                    color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            }
+
+            if (pedido.statusEntrega == "EM_ROTA") {
+                OutlinedButton(onClick = { onAcompanhar(pedido.id) }) { Text("Acompanhar entrega") }
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
             
             Row(verticalAlignment = Alignment.CenterVertically) {

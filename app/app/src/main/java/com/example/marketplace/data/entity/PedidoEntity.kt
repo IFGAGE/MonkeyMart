@@ -24,5 +24,6 @@ data class PedidoEntity(
     val entregaLongitude: Double? = null,
     @ColumnInfo(defaultValue = "''") val emailEntregador: String = "",
     @ColumnInfo(defaultValue = "0") val revisao: Int = 0,
-    @ColumnInfo(defaultValue = "0") val coletado: Boolean = false
+    @ColumnInfo(defaultValue = "0") val coletado: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val avisoProximidade: Boolean = false
 )

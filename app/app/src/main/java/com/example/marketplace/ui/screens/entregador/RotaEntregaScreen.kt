@@ -1,5 +1,6 @@
-﻿package com.example.marketplace.ui.screens.entregador
+package com.example.marketplace.ui.screens.entregador
 
+import android.location.Location
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,15 +14,29 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.state.ToggleableState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.marketplace.data.entity.RotaEntity
 import com.example.marketplace.ui.mapa.*
+import com.example.marketplace.ui.proximidade.ControleLocalizacaoDaRota
+import com.example.marketplace.ui.proximidade.TesteLocalizacaoParada
+import com.example.marketplace.ui.proximidade.MonitorGeofence
+import com.example.marketplace.ui.proximidade.observarLocalizacao
 import com.example.marketplace.ui.screens.profile.VeiculoTemp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,7 +45,8 @@ fun RotaEntregaScreen(rota: RotaEntity, rotaGerada: RotaGerada, pedidos: List<Pe
     onCadastrarVeiculo: () -> Unit, onExcluir: () -> Unit, onIniciar: (String) -> Unit,
     onAtualizarParada: (List<Int>, TipoParada, Boolean) -> Unit,
     onSelecionarVeiculo: suspend (String) -> Unit,
-    onCancelar: () -> Unit, onFinalizar: () -> Unit, onRecalcular: () -> Unit) {
+    onCancelar: () -> Unit, onFinalizar: () -> Unit, onRecalcular: () -> Unit,
+    onPreviaComprador: (Int) -> Unit = {}) {
     var placaSelecionada by rememberSaveable(rota.emailEntregador) { mutableStateOf(rota.placaVeiculo) }
     var escolherVeiculo by rememberSaveable(rota.emailEntregador) {
         mutableStateOf(rota.estado == "PLANEJADA" && rota.placaVeiculo.isNullOrBlank())
@@ -43,6 +59,30 @@ fun RotaEntregaScreen(rota: RotaEntity, rotaGerada: RotaGerada, pedidos: List<Pe
     // preservando zoom e posição mesmo se precisar ser recriada.
     val estadoMapa = lembrarEstadoMapaRota()
     val iniciada = rota.estado == "INICIADA"
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var posicaoAtual by remember(rota.emailEntregador) { mutableStateOf<Location?>(null) }
+    LaunchedEffect(iniciada, rota.emailEntregador, lifecycle, context) {
+        if (!iniciada) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            try {
+                // Os checks usam a posição atual desta tela.
+                MonitorGeofence.revisoes.collectLatest {
+                    posicaoAtual = null
+                    flow { emitAll(observarLocalizacao(context)) }.catch { posicaoAtual = null }.collectLatest { ponto ->
+                        val idade = ponto.idadeMillis()
+                        if (idade in 0L until VALIDADE_POSICAO_MS) {
+                            posicaoAtual = ponto
+                            delay(VALIDADE_POSICAO_MS - idade)
+                        }
+                        posicaoAtual = null
+                    }
+                }
+            } finally {
+                posicaoAtual = null
+            }
+        }
+    }
     val bloqueado = processando || salvandoVeiculo
     val idsDaRota = rotaGerada.paradas.flatMap { it.pedidoIds }.toSet()
     val pedidosPorId = pedidos.associateBy { it.id }
@@ -118,6 +158,7 @@ fun RotaEntregaScreen(rota: RotaEntity, rotaGerada: RotaGerada, pedidos: List<Pe
     }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).clipToBounds(), contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (iniciada && !todosConcluidos) item(key = "localizacao-rota") { ControleLocalizacaoDaRota() }
             item(key = "mapa-rota") { MapaRota(rotaGerada, Modifier.fillMaxWidth().height(240.dp), estadoMapa) }
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -134,17 +175,31 @@ fun RotaEntregaScreen(rota: RotaEntity, rotaGerada: RotaGerada, pedidos: List<Pe
             itemsIndexed(rotaGerada.paradas, key = { indice, parada -> "$indice-${parada.tipo}-${parada.pedidoIds}" }) { indice, parada ->
                 var expandida by rememberSaveable { mutableStateOf(false) }
                 val progresso = progressoParada(parada, pedidosPorId)
+                val distancia = posicaoAtual?.distanciaAteParada(parada.coordenadas)
+                val perto = distancia.dentroDoRaioDaParada()
+                val atualizarNestaParada: (List<Int>, Boolean) -> Unit = { ids, concluido ->
+                    // Confere novamente no toque. A posição pode ter expirado desde o último desenho.
+                    if (iniciada && !bloqueado && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+                        posicaoAtual?.distanciaAteParada(parada.coordenadas).dentroDoRaioDaParada()) {
+                        onAtualizarParada(ids, parada.tipo, concluido)
+                    }
+                }
                 Card(Modifier.fillMaxWidth()) {
                     Row(Modifier.fillMaxWidth().clickable { expandida = !expandida }.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (iniciada) TriStateCheckbox(
                             state = if (progresso.concluida) ToggleableState.On else if (progresso.concluidos > 0) ToggleableState.Indeterminate else ToggleableState.Off,
-                            onClick = { onAtualizarParada(parada.pedidoIds, parada.tipo, !progresso.concluida) },
-                            enabled = !bloqueado && progresso.podeAlterar)
+                            onClick = { atualizarNestaParada(parada.pedidoIds, !progresso.concluida) },
+                            enabled = !bloqueado && perto && progresso.podeAlterar)
                         Icon(if (parada.tipo == TipoParada.COLETA) Icons.Default.Storefront else Icons.Default.LocationOn, null)
                         Column(Modifier.weight(1f)) {
                             Text("${indice + 1}. ${if (parada.tipo == TipoParada.COLETA) "Coleta" else "Entrega"}", style = MaterialTheme.typography.titleMedium)
                             Text(parada.endereco, style = MaterialTheme.typography.bodySmall)
+                            if (iniciada) Text(when {
+                                distancia == null -> "Aguardando localização precisa…"
+                                perto -> "${distancia.roundToInt()} m desta parada"
+                                else -> "${distancia.roundToInt()} m • aproxime-se até ${MonitorGeofence.RAIO.toInt()} m"
+                            }, style = MaterialTheme.typography.bodySmall)
                             if (iniciada) Text("${progresso.concluidos}/${parada.pedidoIds.size} pedidos ${if (parada.tipo == TipoParada.COLETA) "coletados" else "entregues"}",
                                 style = MaterialTheme.typography.labelMedium)
                         }
@@ -158,13 +213,20 @@ fun RotaEntregaScreen(rota: RotaEntity, rotaGerada: RotaGerada, pedidos: List<Pe
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (iniciada && pedido != null) {
                                     Checkbox(checked = if (parada.tipo == TipoParada.COLETA) pedido.coletado else pedido.statusEntrega == "ENTREGUE",
-                                        onCheckedChange = { onAtualizarParada(listOf(id), parada.tipo, it) },
-                                        enabled = !bloqueado && if (parada.tipo == TipoParada.COLETA) pedido.statusEntrega == "EM_ROTA" else pedido.coletado)
+                                        onCheckedChange = { atualizarNestaParada(listOf(id), it) },
+                                        enabled = !bloqueado && perto && if (parada.tipo == TipoParada.COLETA) pedido.statusEntrega == "EM_ROTA" else pedido.coletado)
                                 }
                                 Column(Modifier.weight(1f)) {
                                     Text("Pedido #$id", fontWeight = FontWeight.SemiBold)
                                     Text(pedido?.resumoItens ?: "Carregando pedido...", style = MaterialTheme.typography.bodyMedium)
                                 }
+                            }
+                        }
+                        TesteLocalizacaoParada(destino = parada.coordenadas)
+                        if (iniciada && parada.tipo == TipoParada.ENTREGA &&
+                            context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+                            TextButton(onClick = { onPreviaComprador(parada.pedidoIds.first()) }) {
+                                Text("Ver prévia do comprador")
                             }
                         }
                         if (iniciada && parada.tipo == TipoParada.ENTREGA && !progresso.podeAlterar)
